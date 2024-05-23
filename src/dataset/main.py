@@ -1,74 +1,102 @@
 import blenderproc as bproc
 import argparse
-import os
+from enum import Enum
+from dataclasses import dataclass
 import json
+import numpy as np
 
-parser = argparse.ArgumentParser()
-parser.add_argument('camera', nargs='?', default="examples/resources/camera_positions", help="Path to the camera file")
-parser.add_argument('scene', nargs='?', default="examples/advanced/coco_annotations/scene.blend", help="Path to the scene.blend file")
-parser.add_argument('output_dir', nargs='?', default="examples/advanced/coco_annotations/output", help="Path to where the final files will be saved ")
-args = parser.parse_args()
+transform_matrix = [
+                [
+                    0.6236465573310852,
+                    0.5297408103942871,
+                    -0.5748386979103088,
+                    -5.755568504333496
+                ],
+                [
+                    -0.7817064523696899,
+                    0.4226280152797699,
+                    -0.45860719680786133,
+                    -4.591801166534424
+                ],
+                [
+                    -1.4901161193847656e-08,
+                    0.7353639006614685,
+                    0.677672266960144,
+                    6.785189151763916
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ]
 
-bproc.init()
+class KEYPOINT_TYPE(Enum):
+    TYPE_2D = 'TYPE_2D'
+    TYPE_3D = 'TYPE_3D'
 
-# load the objects into the scene
-objs = bproc.loader.load_blend(args.scene)
+@dataclass
+class Keypoint:
+    type: KEYPOINT_TYPE
+    semantic: str
+    location: np.array
+    def __init__(self, type, semantic, location):
+        self.type = type
+        self.semantic = semantic
+        self.location = location
+    def to_serializable_dict(self):
+        return {'type': str(self.type.value), 'semantic': self.semantic, 'location': self.location.tolist()}
 
-# Set some category ids for loaded objects
-for j, obj in enumerate(objs):
-    obj.set_cp("category_id", j + 1)
+def keypoint_3d_to_2d(keypoint3d: Keypoint) -> Keypoint:
+    """
+    Convert a 3D keypoint to a 2D keypoint representation.
 
-# define a light and set its location and energy level
-light = bproc.types.Light()
-light.set_type("POINT")
-light.set_location([5, -5, 5])
-light.set_energy(1000)
+    :param keypoint3d: The 3D keypoint to be converted.
+    :type keypoint3d: Keypoint
 
-# define the camera intrinsics
-bproc.camera.set_resolution(800, 800)
+    :return: The 2D keypoint representation of the input 3D keypoint.
+    :rtype: Keypoint
+    """
+    location2d = bproc.camera.project_points(np.array([keypoint3d.location]))[0]
+    return Keypoint(KEYPOINT_TYPE.TYPE_2D, keypoint3d.semantic, location2d)
 
-#Avoid this method!!
-with open('./src/dataset/transforms_train.json', 'r') as file:
-    json_data = file.read()
+def extract_3d_keypoints(scene) -> [Keypoint]:
+    """
 
-# read the camera positions file and convert into homogeneous camera-world transformation
-data = json.loads(json_data)
+    This method `extract_3d_keypoints` extracts 3D keypoints from the given scene.
 
-trasformation_matrix_list = []
+    :param scene: A list of objects in the scene.
+    :return: A list of 3D keypoints.
 
-## Just one
-transform_matrix = data['frames'][0]['transform_matrix']
-trasformation_matrix_list.append(transform_matrix)
+    """
+    keypoints3d = []
+    for obj in scene:
+        o = obj.blender_obj
+        if o.type == 'EMPTY':  ## filters out 'MESH' type
+            keypoints3d.append(Keypoint(KEYPOINT_TYPE.TYPE_3D, o.name, np.array([o.location.x, o.location.y, o.location.z])))
+    return keypoints3d
 
-## All
-#for frame in data['frames']:
-#    transformation_matrix = frame['transform_matrix']
-#    trasformation_matrix_list.append(transformation_matrix)
+def write_to_json(keypoints, output_dir):
+    with open(output_dir, "w") as f:
+        serializable_keypoints = [k.to_serializable_dict() for k in keypoints]
+        pretty = json.dumps(serializable_keypoints, indent=4)
+        f.write(pretty)
 
-for matrix in trasformation_matrix_list:
-    bproc.camera.add_camera_pose(matrix)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('scene', nargs='?', help="Path to the 3d model in .ply format")
+    parser.add_argument('output_dir', nargs='?', help="Path to where the final files will be saved")
+    args = parser.parse_args()
 
-# read the camera positions file and convert into homogeneous camera-world transformation
-"""
-with open(args.camera, "r") as f:
-    for line in f.readlines():
-        line = [float(x) for x in line.split()]
-        position, euler_rotation = line[:3], line[3:6]
-        matrix_world = bproc.math.build_transformation_mat(position, euler_rotation)
-        bproc.camera.add_camera_pose(matrix_world)
-"""
+    bproc.init()
+    scene = bproc.loader.load_blend(args.scene)
+    bproc.camera.add_camera_pose(transform_matrix)
+    bproc.camera.set_resolution(800, 800)
 
+    keypoints3d = extract_3d_keypoints(scene)
+    keypoints2d = [keypoint_3d_to_2d(keypoint) for keypoint in keypoints3d]
+    write_to_json(keypoints2d, args.output_dir)
 
-# activate normal rendering
-bproc.renderer.enable_normals_output()
-bproc.renderer.enable_segmentation_output(map_by=["category_id", "instance", "name", "class"])
-
-# render the whole pipeline
-data = bproc.renderer.render()
-
-# Write data to coco file
-bproc.writer.write_coco_annotations(os.path.join(args.output_dir, 'coco_data'),
-                                    instance_segmaps=data["instance_segmaps"],
-                                    instance_attribute_maps=data["instance_attribute_maps"],
-                                    colors=data["colors"],
-                                    color_file_format="JPEG")
+if __name__ == "__main__":
+    main()
