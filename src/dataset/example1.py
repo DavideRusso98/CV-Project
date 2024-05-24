@@ -66,6 +66,7 @@ bproc.renderer.enable_segmentation_output(map_by=["category_id", "instance", "na
 # render the whole pipeline
 data = bproc.renderer.render()
 
+
 # Write data to coco file
 bproc.writer.write_coco_annotations(os.path.join(args.output_dir, 'coco_data'),
                                     instance_segmaps=data["instance_segmaps"],

@@ -3,7 +3,11 @@ import argparse
 from enum import Enum
 from dataclasses import dataclass
 import json
+import os
 import numpy as np
+import bpy
+import cv2
+
 
 transform_matrix = [
                 [
@@ -88,15 +92,58 @@ def main():
     parser.add_argument('scene', nargs='?', help="Path to the 3d model in .ply format")
     parser.add_argument('output_dir', nargs='?', help="Path to where the final files will be saved")
     args = parser.parse_args()
-
+        
     bproc.init()
+    #Avoid this method!!
+    with open('./src/dataset/transforms_train.json', 'r') as file:
+        json_data = file.read()
+
+    # read the camera positions file and convert into homogeneous camera-world transformation
+    data = json.loads(json_data)
+    trasformation_matrix_list = []
+
+    ## Just one
+    transform_matrix = data['frames'][0]['transform_matrix']
+    trasformation_matrix_list.append(transform_matrix)
+
+    ## All
+    #for frame in data['frames']:
+    #    transformation_matrix = frame['transform_matrix']
+    #    trasformation_matrix_list.append(transformation_matrix)
+
+    for matrix in trasformation_matrix_list:
+        bproc.camera.add_camera_pose(matrix)
+
     scene = bproc.loader.load_blend(args.scene)
-    bproc.camera.add_camera_pose(transform_matrix)
     bproc.camera.set_resolution(800, 800)
 
     keypoints3d = extract_3d_keypoints(scene)
     keypoints2d = [keypoint_3d_to_2d(keypoint) for keypoint in keypoints3d]
-    write_to_json(keypoints2d, args.output_dir)
+    write_to_json(keypoints2d, args.output_dir+"keypoints2d.json") #coco
+
+    # collect all RGB paths
+    new_coco_image_paths = []
+    data = bproc.renderer.render()
+    colors = data["colors"]
+    os.makedirs(os.path.join(args.output_dir, 'images'), exist_ok=True)
+
+    # for each rendered frame
+    for frame in range(bpy.context.scene.frame_start, bpy.context.scene.frame_end):
+        color_rgb = colors[frame - bpy.context.scene.frame_start]
+
+        # Reverse channel order for opencv
+        color_bgr = color_rgb.copy()
+        color_bgr[..., :3] = color_bgr[..., :3][..., ::-1]
+
+        target_base_path = f'images/{00}{frame}.jpg' #TODO
+        target_path = os.path.join(args.output_dir, target_base_path)
+        print(target_path)
+        cv2.imwrite(target_path, color_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+
+
+
+        new_coco_image_paths.append(target_base_path)
+   
 
 if __name__ == "__main__":
     main()
