@@ -114,7 +114,7 @@ def coco_append_image(coco, image_id):
 
 def coco_append_keypoints(coco, keypoints, image_id, category_id):
     annotation = {
-        "id": uuid.uuid4(),
+        "id": str(uuid.uuid4()),
         "num_keypoints": len(keypoints) / 3,
         "keypoints": keypoints,
         "image_id": image_id,
