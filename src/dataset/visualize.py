@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 import os
 import cv2
 import argparse
@@ -32,7 +33,9 @@ def main():
     ### load coco .json
     coco_annotations = os.path.join(args.output_dir, 'coco_annotations.json')
     coco = COCO(coco_annotations)
-
+    coco_dt = coco.loadRes(coco_annotations)
+    cocoEval = COCOeval(coco,coco_dt,'keypoints')
+    print(cocoEval)
     ### load image
     im = cv2.imread(os.path.join(args.output_dir, "images", f"{args.model_name}.jpg"))
     im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)

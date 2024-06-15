@@ -16,7 +16,28 @@ IMAGE_HEIGHT = 800
 class KEYPOINT_TYPE(Enum):
     TYPE_2D = 'TYPE_2D'
     TYPE_3D = 'TYPE_3D'
-
+semantic_keypoints = [
+    "wheel_FL",
+    "wheel_FR",
+    "wheel_RL",
+    "wheel_RR",
+    "door_FL",
+    "door_FR",
+    "door_RL",
+    "door_RR",
+    "headlight_FL",
+    "headlight_FR",
+    "headlight_RL",
+    "headlight_RR",
+    "windshield_FRONT",
+    "windshield_REAR",
+    "bumper_FRONT",
+    "bumper_REAR",
+    "license_plate",
+    "mirror_LEFT",
+    "mirror_RIGHT",
+    "roof",
+]
 @dataclass
 class Keypoint:
     type: KEYPOINT_TYPE
@@ -54,10 +75,57 @@ def extract_3d_keypoints(scene) -> [Keypoint]:
     keypoints3d = []
     for obj in scene:
         o = obj.blender_obj
-        if o.type == 'EMPTY':  ## filters out 'MESH' type
+        if o.type == 'EMPTY' and o.name != "Tesla Model 3":  ## filters out 'MESH' type
             keypoints3d.append(Keypoint(KEYPOINT_TYPE.TYPE_3D, o.name, np.array([o.location.x, o.location.y, o.location.z])))
     return keypoints3d
 
+def sorting_keypoints(keypoints3d) -> [Keypoint]:
+    """
+    Sorting function using `semantic_keypoints` list.
+    
+    :param keypoints3d: list of Keypoints
+    :return: Sorted list 
+    """
+    order_dict = {key: index for index, key in enumerate(semantic_keypoints)}
+    print(order_dict)
+    sorted_keypoints = sorted(keypoints3d, key=lambda x: order_dict.get(x.semantic, float('inf')))
+    return sorted_keypoints
+
+def getChildren(myObject): 
+    """
+    Return children of a given blender object
+
+    :param myObject: Blender object 
+    :return: Object's children 
+    """
+    children = [] 
+    for ob in bpy.data.objects: 
+        if ob.parent == myObject: 
+            children.append(ob) 
+    return children 
+def extract_bbox(scene):
+    """ 
+    Function `extract_bbox` extracts bbox coordinates from a give scene
+
+    :param scene: A list of objects in the scene.
+    :return: A list bbox_coordinates [xmin,ymin,xmax,ymax].
+    """
+    bounding_boxes = []
+    for obj in scene:
+        o = obj.blender_obj
+        if o.type == "EMPTY":
+            print(o.name, o.type)
+            child = getChildren(o)
+            bbox = child[0].bound_box
+            xmin = min([v[0] for v in bbox])
+            ymin = min([v[1] for v in bbox])
+            xmax = max([v[0] for v in bbox])
+            ymax = max([v[1] for v in bbox])
+        
+            if([xmin, ymin, xmax, ymax] != [0.0, 0.0, 0.0, 0.0]):
+                bounding_boxes.append([xmin, ymin, xmax, ymax])
+        print(bounding_boxes)
+    return bounding_boxes
 def init_coco() -> dict:
     """
     Initializes a Coco annotations dictionary for an Automotive KeyPoints Dataset.
@@ -96,27 +164,29 @@ def coco_write_categories(keypoints2d_list, coco):
                 "id": category_id_counter,
                 "name": semantic,
                 "supercategory": "car",
-                "keypoints": [semantic], ##TODO: capire bene cosa inserire qui e se semantic è ok
+                "keypoints": [semantic_keypoints], ##TODO: capire bene cosa inserire qui e se semantic è ok
                 "skeleton": []
             }
             semantic_to_category_id[semantic] = category_id_counter
             coco["categories"].append(category)
             category_id_counter += 1
 
-def coco_append_image(coco, image_id):
+def coco_append_image(coco, image_id,frame):
     image_info = {
-        "id": image_id,
+        "id": frame,
         "file_name": f"{image_id}.jpg",
         "height": IMAGE_HEIGHT,
         "width": IMAGE_WIDTH
     }
     coco["images"].append(image_info)
 
-def coco_append_keypoints(coco, keypoints, image_id, category_id):
+def coco_append_keypoints(coco, keypoints, label, bbox, image_id, category_id):
     annotation = {
         "id": str(uuid.uuid4()),
-        "num_keypoints": len(keypoints) / 3,
+        "num_keypoints": int(len(keypoints) / 3),
         "keypoints": keypoints,
+        "labels": label, #Change this! #TODO
+        "boxes": bbox,
         "image_id": image_id,
         "category_id": category_id,
         "iscrowd": 0,
@@ -133,7 +203,7 @@ def coco_default_category(coco):
             "supercategory": "vehicle",
             "id": 1,
             "name": "car",
-            "keypoints": [],
+            "keypoints": [semantic_keypoints],
             "skeleton": []
         }
     coco["categories"].append(category)
@@ -146,7 +216,7 @@ def write_to_json(coco, output_dir):
     :param output_dir: The directory path where the JSON file will be saved.
     :return: None
 
-    This method takes a Coco dataset dictionary and a directory path as input parameters.
+    This methoblenderproc visd takes a Coco dataset dictionary and a directory path as input parameters.
     It writes the Coco dataset to a JSON file with the name "coco_annotations.json" in the specified directory.
     The Coco dataset dictionary is first converted to a pretty-printed JSON string using the `json.dumps` method.
     Then, the JSON string is written to the file using the `write` method of a file object.
@@ -160,7 +230,7 @@ def write_to_json(coco, output_dir):
     """
     filename = output_dir + "coco_annotations.json"
     with open(filename, "w") as f:
-        pretty = json.dumps(coco, indent=4)
+        pretty = json.dumps(coco, indent=4,separators=(',', ': '))
         f.write(pretty)
 
 def load_transf_matrix_list() -> list:
@@ -173,7 +243,7 @@ def load_transf_matrix_list() -> list:
         json_data = file.read()
     data = json.loads(json_data)
     trasformation_matrix_list = [frame['transform_matrix'] for frame in data['frames']]
-    return trasformation_matrix_list[:2]
+    return trasformation_matrix_list[:1]
 
 def init_light_and_resolution(image_width, image_height):
     bproc.camera.set_resolution(image_width, image_height)
@@ -210,9 +280,14 @@ def main():
     for matrix in load_transf_matrix_list():
         bproc.camera.add_camera_pose(matrix)
 
+    # print(matrix)
     scene = bproc.loader.load_blend(args.scene)
     keypoints3d = extract_3d_keypoints(scene)
-
+    keypoints3d = sorting_keypoints(keypoints3d)
+    print(keypoints3d[0])
+    
+    bbox = extract_bbox(scene)
+    # print(bbox)
     init_light_and_resolution(IMAGE_WIDTH, IMAGE_HEIGHT)
     data = bproc.renderer.render()
 
@@ -225,13 +300,19 @@ def main():
         image_id = f"{model_name}_{frame}" # image names will be like "testa_01","tesla_02",...
         image_rgb = colors[frame - bpy.context.scene.frame_start]
         write_image_to_file(args.output_dir, image_id, image_rgb)
-        coco_append_image(coco, image_id)
+        coco_append_image(coco,image_id, frame)
 
         ### Extract keypoints and saves them into coco_annotation's "annotation" section
         keypoints2d = [keypoint_3d_to_2d(keypoint, frame) for keypoint in keypoints3d]
         coco_keypoints = (np.array([np.append(key2d.location, 2) for key2d in keypoints2d])## np.append: 2 is for visibility
                           .flatten().tolist()) # flatten because coco keypoints should be a single list of size N*3
-        coco_append_keypoints(coco, coco_keypoints, image_id, 1)
+        # coco_label = (np.array([key2d.semantic for key2d in keypoints2d])
+        #                   .flatten().tolist())
+        coco_bbox = (np.array([list(box) for box in bbox])
+                           .tolist()) 
+        coco_label = (np.array([1 for box in bbox])
+                           .tolist())
+        coco_append_keypoints(coco, coco_keypoints, coco_label,coco_bbox, frame, 1)
 
     write_to_json(coco, args.output_dir)
 
