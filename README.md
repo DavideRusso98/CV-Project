@@ -1,13 +1,27 @@
 # CV-Project
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wDojrxs4_KjhYU6Cr-fyJ-_waBEcbizh?usp=sharing)
 
+## Environment config
 
-Some commands
-
-### activate alesvale's venv
+### Venv
+How to activate venv
 ```bash
 source /home/alesv/.virtualenvs/CV-Project/bin/activate
 ```
+
+### Conda
+Create Conda Environment with python version 3.x
+```bash
+conda create --name env_339887 -f environment.yml python=3.x
+```
+
+Export all conda's dependencies to an environment.yml file:
+```bash
+conda env export --from-history > environment.yml
+```
+
+
+## Launches
 
 ### Launch main via blenderproc. Before launching make sure to cd into project root 
 ```bash
