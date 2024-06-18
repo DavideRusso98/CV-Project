@@ -13,6 +13,16 @@ import datetime
 IMAGE_WIDTH = 800
 IMAGE_HEIGHT = 800
 
+"""
+README:
+While rendering multiple models an ERROR occurs:
+ERROR (bke.lib_id_delete): source/blender/blenkernel/intern/lib_id_delete.c:357 id_delete: Deleting IMRender Result which still has 1 users (including 0 'extra' shallow users)
+
+Ignore it, the script is working. 
+See issue: https://github.com/DLR-RM/BlenderProc/issues/997
+"""
+
+
 class KEYPOINT_TYPE(Enum):
     TYPE_2D = 'TYPE_2D'
     TYPE_3D = 'TYPE_3D'
@@ -87,7 +97,7 @@ def sorting_keypoints(keypoints3d) -> [Keypoint]:
     :return: Sorted list 
     """
     order_dict = {key: index for index, key in enumerate(semantic_keypoints)}
-    print(order_dict)
+    #print(order_dict)
     sorted_keypoints = sorted(keypoints3d, key=lambda x: order_dict.get(x.semantic, float('inf')))
     return sorted_keypoints
 
@@ -102,7 +112,8 @@ def getChildren(myObject):
     for ob in bpy.data.objects: 
         if ob.parent == myObject: 
             children.append(ob) 
-    return children 
+    return children
+
 def extract_bbox(scene):
     """ 
     Function `extract_bbox` extracts bbox coordinates from a give scene
@@ -114,7 +125,7 @@ def extract_bbox(scene):
     for obj in scene:
         o = obj.blender_obj
         if o.type == "EMPTY":
-            print(o.name, o.type)
+            #print(o.name, o.type)
             child = getChildren(o)
             bbox = child[0].bound_box
             xmin = min([v[0] for v in bbox])
@@ -124,8 +135,9 @@ def extract_bbox(scene):
         
             if([xmin, ymin, xmax, ymax] != [0.0, 0.0, 0.0, 0.0]):
                 bounding_boxes.append([xmin, ymin, xmax, ymax])
-        print(bounding_boxes)
+        #print(bounding_boxes)
     return bounding_boxes
+
 def init_coco() -> dict:
     """
     Initializes a Coco annotations dictionary for an Automotive KeyPoints Dataset.
@@ -171,14 +183,15 @@ def coco_write_categories(keypoints2d_list, coco):
             coco["categories"].append(category)
             category_id_counter += 1
 
-def coco_append_image(coco, image_id,frame):
+def coco_append_image(coco, image_filename, image_id) -> int:
     image_info = {
-        "id": frame,
-        "file_name": f"{image_id}.jpg",
+        "id": image_id,
+        "file_name": f"{image_filename}.jpg",
         "height": IMAGE_HEIGHT,
         "width": IMAGE_WIDTH
     }
     coco["images"].append(image_info)
+    return image_id+1
 
 def coco_append_keypoints(coco, keypoints, label, bbox, image_id, category_id):
     annotation = {
@@ -243,7 +256,7 @@ def load_transf_matrix_list() -> list:
         json_data = file.read()
     data = json.loads(json_data)
     trasformation_matrix_list = [frame['transform_matrix'] for frame in data['frames']]
-    return trasformation_matrix_list[:1]
+    return trasformation_matrix_list[:2] ## todo: remove
 
 def init_light_and_resolution(image_width, image_height):
     bproc.camera.set_resolution(image_width, image_height)
@@ -266,9 +279,13 @@ def write_image_to_file(output_dir, image_id, image_rgb):
     target_path = os.path.join(output_dir, f"images/{image_id}.jpg")
     cv2.imwrite(target_path, color_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
 
+def add_camera_poses(matrix_list):
+    for matrix in matrix_list:
+        bproc.camera.add_camera_pose(matrix)
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('scene', nargs='?', help="Path to the 3d model in .ply format")
+    parser.add_argument('scenes_dir', nargs='?', help="Path to the 3d model directory")
     parser.add_argument('output_dir', nargs='?', help="Path to where the final files will be saved")
     args = parser.parse_args()
 
@@ -277,42 +294,47 @@ def main():
     coco_default_category(coco)
     os.makedirs(os.path.join(args.output_dir, 'images'), exist_ok=True)
 
-    for matrix in load_transf_matrix_list():
-        bproc.camera.add_camera_pose(matrix)
+    camera_poses = load_transf_matrix_list()
+    scenes_paths = [args.scenes_dir + scene_filename for scene_filename in os.listdir(args.scenes_dir)]
+    model_names = [scene_filename.split('_')[0] for scene_filename in os.listdir(args.scenes_dir)]
+    model_list = list(zip(scenes_paths, model_names))
+    model_list = model_list[:2] ## TODO: remove
 
-    # print(matrix)
-    scene = bproc.loader.load_blend(args.scene)
-    keypoints3d = extract_3d_keypoints(scene)
-    keypoints3d = sorting_keypoints(keypoints3d)
-    print(keypoints3d[0])
-    
-    bbox = extract_bbox(scene)
-    # print(bbox)
-    init_light_and_resolution(IMAGE_WIDTH, IMAGE_HEIGHT)
-    data = bproc.renderer.render()
+    image_id = 0
+    for model_path, model_name in model_list:
+        add_camera_poses(camera_poses)
+        scene = bproc.loader.load_blend(model_path)
+        keypoints3d = extract_3d_keypoints(scene)
+        keypoints3d = sorting_keypoints(keypoints3d)
 
-    colors = data["colors"]
-    model_name = "tesla"
+        bbox = extract_bbox(scene)
+        init_light_and_resolution(IMAGE_WIDTH, IMAGE_HEIGHT)
+        data = bproc.renderer.render()
+        colors = data["colors"]
 
-    for frame in range(bpy.context.scene.frame_start, bpy.context.scene.frame_end):
+        for frame in range(bpy.context.scene.frame_start, bpy.context.scene.frame_end):
 
-        ### Extract image, saves it to file and populate coco_annotation's "images" section
-        image_id = f"{model_name}_{frame}" # image names will be like "testa_01","tesla_02",...
-        image_rgb = colors[frame - bpy.context.scene.frame_start]
-        write_image_to_file(args.output_dir, image_id, image_rgb)
-        coco_append_image(coco,image_id, frame)
+            ### Extract image, saves it to file and populate coco_annotation's "images" section
+            image_filename = f"{model_name}_{frame}" # image names will be like "testa_01","tesla_02",...
+            image_rgb = colors[frame - bpy.context.scene.frame_start]
+            write_image_to_file(args.output_dir, image_filename, image_rgb)
+            image_id = coco_append_image(coco, image_filename, image_id)
+            print(f"image_id: {image_id}")
 
-        ### Extract keypoints and saves them into coco_annotation's "annotation" section
-        keypoints2d = [keypoint_3d_to_2d(keypoint, frame) for keypoint in keypoints3d]
-        coco_keypoints = (np.array([np.append(key2d.location, 2) for key2d in keypoints2d])## np.append: 2 is for visibility
-                          .flatten().tolist()) # flatten because coco keypoints should be a single list of size N*3
-        # coco_label = (np.array([key2d.semantic for key2d in keypoints2d])
-        #                   .flatten().tolist())
-        coco_bbox = (np.array([list(box) for box in bbox])
-                           .tolist()) 
-        coco_label = (np.array([1 for box in bbox])
-                           .tolist())
-        coco_append_keypoints(coco, coco_keypoints, coco_label,coco_bbox, frame, 1)
+            ### Extract keypoints and saves them into coco_annotation's "annotation" section
+            keypoints2d = [keypoint_3d_to_2d(keypoint, frame) for keypoint in keypoints3d]
+            coco_keypoints = (np.array([np.append(key2d.location, 2) for key2d in keypoints2d]) ## np.append: 2 is for visibility
+                              .flatten().tolist()) # flatten because coco keypoints should be a single list of size N*3
+            # coco_label = (np.array([key2d.semantic for key2d in keypoints2d])
+            #                   .flatten().tolist())
+            coco_bbox = (np.array([list(box) for box in bbox])
+                               .tolist())
+            coco_label = (np.array([1 for box in bbox])
+                               .tolist())
+            coco_append_keypoints(coco, coco_keypoints, coco_label, coco_bbox, image_id, 1)
+
+        ## cleans the scene before loading the next model
+        bproc.clean_up()
 
     write_to_json(coco, args.output_dir)
 

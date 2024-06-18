@@ -25,7 +25,7 @@ conda env export --from-history > environment.yml
 
 ### Launch main via blenderproc. Before launching make sure to cd into project root 
 ```bash
-blenderproc run ./src/dataset/main.py ./src/resources/objects3d/tesla.blend ./src/dataset/output/
+blenderproc run ./src/dataset/main.py ./src/resources/objects3d/ ./src/dataset/output/
 ```
 
 ### Launch example1 via blenderproc. Before launching make sure to cd into project root
