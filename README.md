@@ -30,7 +30,7 @@ blenderproc run ./src/dataset/main.py ./src/resources/objects3d/ ./src/dataset/o
 
 ### Launch example1 via blenderproc. Before launching make sure to cd into project root
 ```bash
-blenderproc run ./src/dataset/example1.py ./src/resources/camera_positions ./src/resources/objects3d/tesla.blend ./src/dataset/output/
+blenderproc run ./src/dataset/example1.py ./src/resources/camera_positions ./src/resources/objects3d/tesla_annotated.blend ./src/dataset/output/
 ```
 
 ### Visualize image with its keypoints in 2D

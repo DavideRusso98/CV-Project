@@ -9,6 +9,9 @@ import numpy as np
 import bpy
 import cv2
 import datetime
+import random
+
+from blenderproc.python.writer.CocoWriterUtility import _CocoWriterUtility
 
 IMAGE_WIDTH = 800
 IMAGE_HEIGHT = 800
@@ -261,27 +264,29 @@ def load_transf_matrix_list() -> list:
 def init_light_and_resolution(image_width, image_height):
     bproc.camera.set_resolution(image_width, image_height)
     light = bproc.types.Light()
-    light.set_type("POINT")
+    light.set_type("SUN")
     light.set_location([5, -5, 5])
-    light.set_energy(1000)
+    light.set_energy(200)
+    return light
 
-def write_image_to_file(output_dir, image_id, image_rgb):
-    """
-    Write the given RGB image to a file in the specified output directory.
+def write_image_to_file(output_dir, image_id, image_bgr, bbox):
+    ### Write rendered image without bbox and keypoints
+    target_path = os.path.join(output_dir, f"images/clean/{image_id}.jpg")
+    cv2.imwrite(target_path, image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
 
-    :param output_dir: The directory where the image file should be saved.
-    :param image_id: The unique identifier for the image.
-    :param image_rgb: The RGB image to be written.
-    :return: None
-    """
-    color_bgr = image_rgb.copy()
-    color_bgr[..., :3] = color_bgr[..., :3][..., ::-1]
-    target_path = os.path.join(output_dir, f"images/{image_id}.jpg")
-    cv2.imwrite(target_path, color_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+    ###Write same rendered image with bbox and keypoints (keypoints are still in todo)
+    x, y, w, h = bbox
+    cv2.rectangle(image_bgr, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    target_path = os.path.join(output_dir, f"images/annotated/{image_id}.jpg")
+    cv2.imwrite(target_path, image_bgr,[int(cv2.IMWRITE_JPEG_QUALITY), 95])
 
 def add_camera_poses(matrix_list):
     for matrix in matrix_list:
         bproc.camera.add_camera_pose(matrix)
+
+def return_boundingbox_from_segmap(segmap):
+    binary_mask = np.where(segmap != 0, 1, 0)
+    return _CocoWriterUtility.bbox_from_binary_mask(binary_mask)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -292,46 +297,45 @@ def main():
     bproc.init()
     coco = init_coco()
     coco_default_category(coco)
-    os.makedirs(os.path.join(args.output_dir, 'images'), exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir, 'images/clean'), exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir, 'images/annotated'), exist_ok=True)
 
     camera_poses = load_transf_matrix_list()
     scenes_paths = [args.scenes_dir + scene_filename for scene_filename in os.listdir(args.scenes_dir)]
     model_names = [scene_filename.split('_')[0] for scene_filename in os.listdir(args.scenes_dir)]
     model_list = list(zip(scenes_paths, model_names))
-    model_list = model_list[:2] ## TODO: remove
+    model_list = model_list[:1] ## TODO: remove
 
     image_id = 0
     for model_path, model_name in model_list:
         add_camera_poses(camera_poses)
+        init_light_and_resolution(IMAGE_WIDTH, IMAGE_HEIGHT)
+        bproc.renderer.set_world_background([1,1,1]) # this should set the background to black
         scene = bproc.loader.load_blend(model_path)
+        for j, obj in enumerate(scene):
+            obj.set_cp("category_id", j + 1)
+
         keypoints3d = extract_3d_keypoints(scene)
         keypoints3d = sorting_keypoints(keypoints3d)
 
-        bbox = extract_bbox(scene)
-        init_light_and_resolution(IMAGE_WIDTH, IMAGE_HEIGHT)
+        bproc.renderer.enable_segmentation_output(map_by=["category_id", "instance", "name", "class"])
         data = bproc.renderer.render()
         colors = data["colors"]
 
         for frame in range(bpy.context.scene.frame_start, bpy.context.scene.frame_end):
-
-            ### Extract image, saves it to file and populate coco_annotation's "images" section
-            image_filename = f"{model_name}_{frame}" # image names will be like "testa_01","tesla_02",...
+            image_filename = f"{model_name}_{frame}"
             image_rgb = colors[frame - bpy.context.scene.frame_start]
-            write_image_to_file(args.output_dir, image_filename, image_rgb)
+            color_bgr = image_rgb.copy()
+            color_bgr[..., :3] = color_bgr[..., :3][..., ::-1]
+            coco_bbox = return_boundingbox_from_segmap(data["instance_segmaps"][frame])
+            write_image_to_file(args.output_dir, image_filename, color_bgr, coco_bbox)
             image_id = coco_append_image(coco, image_filename, image_id)
-            print(f"image_id: {image_id}")
 
-            ### Extract keypoints and saves them into coco_annotation's "annotation" section
             keypoints2d = [keypoint_3d_to_2d(keypoint, frame) for keypoint in keypoints3d]
             coco_keypoints = (np.array([np.append(key2d.location, 2) for key2d in keypoints2d]) ## np.append: 2 is for visibility
                               .flatten().tolist()) # flatten because coco keypoints should be a single list of size N*3
-            # coco_label = (np.array([key2d.semantic for key2d in keypoints2d])
-            #                   .flatten().tolist())
-            coco_bbox = (np.array([list(box) for box in bbox])
-                               .tolist())
-            coco_label = (np.array([1 for box in bbox])
-                               .tolist())
-            coco_append_keypoints(coco, coco_keypoints, coco_label, coco_bbox, image_id, 1)
+            #coco_label = (np.array([1 for box in bbox]).tolist())
+            coco_append_keypoints(coco, coco_keypoints, [], coco_bbox, image_id, 1)
 
         ## cleans the scene before loading the next model
         bproc.clean_up()
