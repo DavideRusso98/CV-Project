@@ -1,12 +1,17 @@
 # CV-Project
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wDojrxs4_KjhYU6Cr-fyJ-_waBEcbizh?usp=sharing)
 
+## Link to our Google Drive
+[DATASET KEYPOINT](https://drive.google.com/drive/folders/1GCpRsDSXSHfqCM5T36EM5d35a_DVg3LB?usp=drive_link)
+
+
 ## Environment config
 
 ### Venv
 How to activate venv
 ```bash
 source /home/alesv/.virtualenvs/CV-Project/bin/activate
+source /home/alesvale/.virtualenvs/CV-Project/bin/activate
 ```
 
 ### Conda

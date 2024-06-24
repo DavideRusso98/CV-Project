@@ -29,6 +29,7 @@ See issue: https://github.com/DLR-RM/BlenderProc/issues/997
 class KEYPOINT_TYPE(Enum):
     TYPE_2D = 'TYPE_2D'
     TYPE_3D = 'TYPE_3D'
+
 semantic_keypoints = [
     "wheel_FL",
     "wheel_FR",
@@ -51,6 +52,7 @@ semantic_keypoints = [
     "mirror_RIGHT",
     "roof",
 ]
+
 @dataclass
 class Keypoint:
     type: KEYPOINT_TYPE
@@ -76,21 +78,13 @@ def keypoint_3d_to_2d(keypoint3d: Keypoint, frame_id) -> Keypoint:
     location2d = bproc.camera.project_points(np.array([keypoint3d.location]), frame_id)[0]
     return Keypoint(KEYPOINT_TYPE.TYPE_2D, keypoint3d.semantic, location2d)
 
-def extract_3d_keypoints(scene) -> [Keypoint]:
-    """
-
-    This method `extract_3d_keypoints` extracts 3D keypoints from the given scene.
-
-    :param scene: A list of objects in the scene.
-    :return: A list of 3D keypoints.
-
-    """
-    keypoints3d = []
+def extract_3d_keypoints(scene):
+    keypoints3d_dict = dict()
     for obj in scene:
         o = obj.blender_obj
-        if o.type == 'EMPTY' and o.name != "Tesla Model 3":  ## filters out 'MESH' type
-            keypoints3d.append(Keypoint(KEYPOINT_TYPE.TYPE_3D, o.name, np.array([o.location.x, o.location.y, o.location.z])))
-    return keypoints3d
+        if o.type == 'EMPTY':
+            keypoints3d_dict[o.name] = Keypoint(KEYPOINT_TYPE.TYPE_3D, o.name, np.array([o.location.x, o.location.y, o.location.z]))
+    return keypoints3d_dict
 
 def sorting_keypoints(keypoints3d) -> [Keypoint]:
     """
@@ -103,6 +97,19 @@ def sorting_keypoints(keypoints3d) -> [Keypoint]:
     #print(order_dict)
     sorted_keypoints = sorted(keypoints3d, key=lambda x: order_dict.get(x.semantic, float('inf')))
     return sorted_keypoints
+
+def compute_coco_keypoints(keypoints3d_dict, frame):
+    coco_keypoints = []
+    num_keypoints = 0
+    for semantic in semantic_keypoints:
+        if semantic not in keypoints3d_dict:
+            coco_keypoints.extend([0, 0, 0])
+            continue
+        keypoint2d = keypoint_3d_to_2d(keypoints3d_dict[semantic], frame)
+        coco_keypoints.extend(keypoint2d.location)
+        coco_keypoints.append(2) # visibility
+        num_keypoints+=1
+    return (coco_keypoints, num_keypoints)
 
 def getChildren(myObject): 
     """
@@ -194,14 +201,12 @@ def coco_append_image(coco, image_filename, image_id) -> int:
         "width": IMAGE_WIDTH
     }
     coco["images"].append(image_info)
-    return image_id+1
 
-def coco_append_keypoints(coco, keypoints, label, bbox, image_id, category_id):
+def coco_append_keypoints(coco, keypoints, num_keypoints, bbox, image_id, category_id):
     annotation = {
         "id": str(uuid.uuid4()),
-        "num_keypoints": int(len(keypoints) / 3),
+        "num_keypoints": num_keypoints,
         "keypoints": keypoints,
-        "labels": label, #Change this! #TODO
         "boxes": bbox,
         "image_id": image_id,
         "category_id": category_id,
@@ -259,14 +264,15 @@ def load_transf_matrix_list() -> list:
         json_data = file.read()
     data = json.loads(json_data)
     trasformation_matrix_list = [frame['transform_matrix'] for frame in data['frames']]
-    return trasformation_matrix_list[:2] ## todo: remove
+    #return trasformation_matrix_list[]
+    return [trasformation_matrix_list[1], trasformation_matrix_list[2], trasformation_matrix_list[60]] ## todo: uncomment this in prod
 
 def init_light_and_resolution(image_width, image_height):
     bproc.camera.set_resolution(image_width, image_height)
     light = bproc.types.Light()
-    light.set_type("SUN")
+    light.set_type("POINT")
     light.set_location([5, -5, 5])
-    light.set_energy(200)
+    light.set_energy(10000)
     return light
 
 def write_image_to_file(output_dir, image_id, image_bgr, bbox):
@@ -304,7 +310,7 @@ def main():
     scenes_paths = [args.scenes_dir + scene_filename for scene_filename in os.listdir(args.scenes_dir)]
     model_names = [scene_filename.split('_')[0] for scene_filename in os.listdir(args.scenes_dir)]
     model_list = list(zip(scenes_paths, model_names))
-    model_list = model_list[:1] ## TODO: remove
+    #model_list = model_list[:2] ## TODO: remove
 
     image_id = 0
     for model_path, model_name in model_list:
@@ -315,8 +321,8 @@ def main():
         for j, obj in enumerate(scene):
             obj.set_cp("category_id", j + 1)
 
-        keypoints3d = extract_3d_keypoints(scene)
-        keypoints3d = sorting_keypoints(keypoints3d)
+        keypoints3d_dict = extract_3d_keypoints(scene)
+        #keypoints3d = sorting_keypoints(keypoints3d_dict)
 
         bproc.renderer.enable_segmentation_output(map_by=["category_id", "instance", "name", "class"])
         data = bproc.renderer.render()
@@ -329,13 +335,10 @@ def main():
             color_bgr[..., :3] = color_bgr[..., :3][..., ::-1]
             coco_bbox = return_boundingbox_from_segmap(data["instance_segmaps"][frame])
             write_image_to_file(args.output_dir, image_filename, color_bgr, coco_bbox)
-            image_id = coco_append_image(coco, image_filename, image_id)
-
-            keypoints2d = [keypoint_3d_to_2d(keypoint, frame) for keypoint in keypoints3d]
-            coco_keypoints = (np.array([np.append(key2d.location, 2) for key2d in keypoints2d]) ## np.append: 2 is for visibility
-                              .flatten().tolist()) # flatten because coco keypoints should be a single list of size N*3
-            #coco_label = (np.array([1 for box in bbox]).tolist())
-            coco_append_keypoints(coco, coco_keypoints, [], coco_bbox, image_id, 1)
+            coco_append_image(coco, image_filename, image_id)
+            coco_keypoints, num_keypoints = compute_coco_keypoints(keypoints3d_dict, frame)
+            coco_append_keypoints(coco, coco_keypoints, num_keypoints, coco_bbox, image_id, 1)
+            image_id+=1
 
         ## cleans the scene before loading the next model
         bproc.clean_up()
