@@ -47,3 +47,8 @@ blenderproc run ./src/dataset/example1.py ./src/resources/camera_positions ./src
 
 python src/dataset/visualize.py tesla_0 ./src/dataset/output
 ```
+
+### Split dataset into train and test 80/20
+```bash
+ python ./src/dataset/cocosplit/cocosplit.py --having-annotations -s 0.8 ./src/dataset/output/coco_annotations.json ./src/dataset/output/coco_train.json ./src/dataset/output/coco_test.json
+```
