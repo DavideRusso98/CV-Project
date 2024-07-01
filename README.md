@@ -48,7 +48,9 @@ blenderproc run ./src/dataset/example1.py ./src/resources/camera_positions ./src
 python src/dataset/visualize.py tesla_0 ./src/dataset/output
 ```
 
+python ./src/resnet/tools/train.py ./src/resnet/configs/my_custom_config.py
+
 ### Split dataset into train and test 80/20
 ```bash
- python ./src/dataset/cocosplit/cocosplit.py --having-annotations -s 0.8 ./src/dataset/output/coco_annotations.json ./src/dataset/output/coco_train.json ./src/dataset/output/coco_test.json
+ python ./src/dataset/cocosplit.py --having-annotations -s 0.8 ./src/dataset/output/coco_annotations.json ./src/dataset/output/coco_train.json ./src/dataset/output/coco_test.json
 ```

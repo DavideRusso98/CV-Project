@@ -122,6 +122,12 @@ def compute_coco_keypoints(keypoints3d_dict, frame):
     return coco_keypoints, num_keypoints
 
 
+def load_coco_annotations():
+    with open('./src/dataset/output/coco_annotations.json', 'r') as file:
+        json_data = file.read()
+    return json.loads(json_data)
+
+
 def init_coco() -> dict:
     coco_annotations = {
         "info": {
@@ -131,10 +137,18 @@ def init_coco() -> dict:
             "contributor": "GRUPPO14_Prini_Russo_Valenza",
             "date_created": datetime.datetime.now().isoformat()
         },
+        "licenses": [
+            {
+                "url": "http://creativecommons.org/licenses/by-nc-sa/2.0/",
+                "id": 1,
+                "name": "Attribution-NonCommercial-ShareAlike License"
+            }
+        ],
         "images": [],
         "annotations": [],
         "categories": [],
     }
+    coco_default_category(coco_annotations)
     return coco_annotations
 
 
@@ -195,7 +209,7 @@ def load_transf_matrix_list() -> list:
         json_data = file.read()
     data = json.loads(json_data)
     transformation_matrix_list = [frame['transform_matrix'] for frame in data['frames']]
-    #return transformation_matrix_list[:4] ## todo: remove in production
+    return transformation_matrix_list
 
 
 def init_light_and_resolution(image_width, image_height):
@@ -249,8 +263,11 @@ def main():
     args = parser.parse_args()
 
     bproc.init()
-    coco = init_coco()
-    coco_default_category(coco)
+    #coco = init_coco()
+    #image_id = 0
+    coco = load_coco_annotations()
+    image_id = coco["images"][-1]["id"] + 1
+    print(f"last saved image_id +1 : {image_id}")
     os.makedirs(os.path.join(args.output_dir, 'images/clean'), exist_ok=True)
     os.makedirs(os.path.join(args.output_dir, 'images/annotated'), exist_ok=True)
 
@@ -258,9 +275,9 @@ def main():
     scenes_paths = [args.scenes_dir + scene_filename for scene_filename in os.listdir(args.scenes_dir)]
     model_names = [scene_filename.split('_')[0] for scene_filename in os.listdir(args.scenes_dir)]
     model_list = list(zip(scenes_paths, model_names))
-    #model_list = model_list[1:3]  ## todo: remove in production
+    model_list = model_list[4:5] #todo
 
-    image_id = 0
+
     for model_path, model_name in model_list:
         add_camera_poses(camera_poses)
         init_light_and_resolution(IMAGE_WIDTH, IMAGE_HEIGHT)
@@ -280,7 +297,7 @@ def main():
             coco_bbox, coco_segmentation = bbox_and_segmentation(data["instance_segmaps"][frame])
             coco_keypoints, num_keypoints = compute_coco_keypoints(keypoints3d_dict, frame)
             write_image_to_file(args.output_dir, image_filename, color_bgr)
-            write_and_annotate_image_to_file(args.output_dir, image_filename, color_bgr, coco_bbox, coco_keypoints)
+            #write_and_annotate_image_to_file(args.output_dir, image_filename, color_bgr, coco_bbox, coco_keypoints)
             coco_append_image(coco, image_filename, image_id)
             coco_append_keypoints(coco, coco_keypoints, num_keypoints, coco_bbox, coco_segmentation, image_id, 1)
             image_id += 1

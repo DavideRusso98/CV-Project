@@ -68,7 +68,7 @@ def get_args_parser(add_help=True):
     parser.add_argument("--data-path", default="./src/dataset/output", type=str, help="dataset path")
     parser.add_argument("--dataset", default="coco", type=str, help="dataset name")
     parser.add_argument("--model", default="maskrcnn_resnet50_fpn", type=str, help="model name")
-    parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
+    parser.add_argument("--device", default="cpu", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument(
         "-b", "--batch-size", default=2, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
     )
@@ -168,7 +168,7 @@ def main(args):
 
     coco_train_ann_path = './src/dataset/output/coco_train.json'
     coco_test_ann_path = './src/dataset/output/coco_test.json'
-    img_dir = './src/dataset/output/images/clean/'
+    img_dir = './src/dataset/output/images/clean'
 
     dataset = datasets.CocoDetection(img_dir, coco_train_ann_path, transform=transforms.ToTensor())
     dataset_test = datasets.CocoDetection(img_dir, coco_test_ann_path, transform=transforms.ToTensor())
@@ -188,13 +188,11 @@ def main(args):
     else:
         train_batch_sampler = torch.utils.data.BatchSampler(train_sampler, args.batch_size, drop_last=True)
 
-    data_loader = torch.utils.data.DataLoader(
-        dataset, batch_sampler=train_batch_sampler, num_workers=args.workers, collate_fn=utils.collate_fn
-    )
+    #data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=train_batch_sampler, num_workers=args.workers, collate_fn=utils.collate_fn)
+    #data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, sampler=test_sampler, num_workers=args.workers, collate_fn=utils.collate_fn)
 
-    data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=1, sampler=test_sampler, num_workers=args.workers, collate_fn=utils.collate_fn
-    )
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True, num_workers=4, collate_fn=lambda x: tuple(zip(*x)))
+    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=2, shuffle=True, num_workers=4, collate_fn=lambda x: tuple(zip(*x)))
 
     print("Creating model")
     kwargs = {"trainable_backbone_layers": args.trainable_backbone_layers}
