@@ -21,6 +21,8 @@ import datetime
 import os
 import time
 
+from torchvision.models.detection import keypointrcnn_resnet50_fpn
+
 import presets
 import torch
 import torch.utils.data
@@ -67,8 +69,8 @@ def get_args_parser(add_help=True):
 
     parser.add_argument("--data-path", default="./src/dataset/output", type=str, help="dataset path")
     parser.add_argument("--dataset", default="coco", type=str, help="dataset name")
-    parser.add_argument("--model", default="maskrcnn_resnet50_fpn", type=str, help="model name")
-    parser.add_argument("--device", default="cpu", type=str, help="device (Use cuda or cpu Default: cuda)")
+    parser.add_argument("--model", default="keypointrcnn_resnet50_fpn", type=str, help="model name")
+    parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument(
         "-b", "--batch-size", default=2, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
     )
@@ -166,9 +168,9 @@ def main(args):
     #dataset, num_classes = get_dataset(args.dataset, "train", get_transform(True, args), args.data_path)
     #dataset_test, _ = get_dataset(args.dataset, "val", get_transform(False, args), args.data_path)
 
-    coco_train_ann_path = './src/dataset/output/coco_train.json'
-    coco_test_ann_path = './src/dataset/output/coco_test.json'
-    img_dir = './src/dataset/output/images/clean'
+    coco_train_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_train.json'
+    coco_test_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_test.json'
+    img_dir = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/images/clean'
 
     dataset = datasets.CocoDetection(img_dir, coco_train_ann_path, transform=transforms.ToTensor())
     dataset_test = datasets.CocoDetection(img_dir, coco_test_ann_path, transform=transforms.ToTensor())
@@ -200,8 +202,10 @@ def main(args):
         if args.rpn_score_thresh is not None:
             kwargs["rpn_score_thresh"] = args.rpn_score_thresh
     if not args.weights:
-        model = torchvision.models.detection.__dict__[args.model](
-            pretrained=args.pretrained, num_classes=num_classes, **kwargs
+        model = keypointrcnn_resnet50_fpn(pretrained=False, num_classes=num_classes, num_keypoints=20)
+        model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(
+            model.roi_heads.box_predictor.cls_score.in_features,
+            num_classes
         )
     else:
         model = PM.detection.__dict__[args.model](weights=args.weights, num_classes=num_classes, **kwargs)
@@ -257,7 +261,7 @@ def main(args):
             utils.save_on_master(checkpoint, os.path.join(args.output_dir, "checkpoint.pth"))
 
         # evaluate after every epoch
-        evaluate(model, data_loader_test, device=device)
+        #evaluate(model, data_loader_test, device=device)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

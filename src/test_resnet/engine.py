@@ -4,9 +4,29 @@ import time
 
 import torch
 import torchvision.models.detection.mask_rcnn
+from torchvision.tv_tensors import BoundingBoxes
+
 import utils
 from coco_eval import CocoEvaluator
 from coco_utils import get_coco_api_from_dataset
+
+
+
+"""
+keypointrcnn_resnet50_fpn expects input as follows:
+boxes (FloatTensor[N, 4]): the ground-truth boxes in [x1, y1, x2, y2] format, with 0 <= x1 < x2 <= W and 0 <= y1 < y2 <= H.
+labels (Int64Tensor[N]): the class label for each ground-truth box
+keypoints (FloatTensor[N, K, 3]): the K keypoints location for each of the N instances, in the format [x, y, visibility], where visibility=0 means that the keypoint is not visible.
+"""
+def rearrange_data(targets, device):
+    targets = [t[0] for t in targets]
+    N = len(targets)
+    targets = [{
+        'boxes': torchvision.ops.box_convert(torch.tensor(t['boxes']).reshape((1, 4)), 'cxcywh', 'xyxy').to(device),
+        'labels': torch.tensor([1 for _ in range(N)], dtype=torch.int64).to(device),
+        'keypoints': torch.tensor(t['keypoints']).reshape(1, -1, 3).to(device)
+    } for t in targets]
+    return targets
 
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
@@ -26,22 +46,20 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
 
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         images = list(image.to(device) for image in images)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        targets = rearrange_data(targets, device)
 
         loss_dict = model(images, targets)
-
         losses = sum(loss for loss in loss_dict.values())
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict)
         losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+        #loss_value = losses_reduced.item()
 
-        loss_value = losses_reduced.item()
-
-        if not math.isfinite(loss_value):
-            print(f"Loss is {loss_value}, stopping training")
-            print(loss_dict_reduced)
-            sys.exit(1)
+        #if not math.isfinite(loss_value):
+        #    print(f"Loss is {loss_value}, stopping training")
+        #    print(loss_dict_reduced)
+        #    sys.exit(1)
 
         optimizer.zero_grad()
         losses.backward()
