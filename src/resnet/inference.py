@@ -6,8 +6,8 @@ import numpy as np
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
 
 # Loading pre-trained model
-model = keypointrcnn_resnet50_fpn(pretrained=True, num_classes=2, num_keypoints=17)
-model.load_state_dict(torch.load('./src/resources/resnet_test/resnet_coco.pth'))
+model = keypointrcnn_resnet50_fpn(pretrained=False, num_classes=2, num_keypoints=20)
+model.load_state_dict(torch.load('/mnt/c/Users/alesv/PycharmProjects/CV-Project/our_super_model_trained.pth'))
 model.eval()
 
 # Preprocessing image function
@@ -20,14 +20,12 @@ def preprocess_image(image_path):
     return image
 
 # Percorso dell'immagine
-image_path = "./src/dataset/output/images/tesla_0.jpg"
+image_path = "/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/images/clean/alfa_0.jpg"
 image = preprocess_image(image_path)
 
 # Effettua l'inferenza
 with torch.no_grad():
     prediction = model([image])
-# print(prediction)
-# Funzione per visualizzare i keypoints
 def plot_keypoints(image, keypoints, scores, threshold=0.5):
     plt.imshow(image.permute(1, 2, 0).cpu().numpy())
     ax = plt.gca()
@@ -47,5 +45,5 @@ image = image.cpu()
 keypoints = prediction[0]['keypoints'].cpu()
 scores = prediction[0]['scores'].cpu()
 print(keypoints)
-# print(scores)
+print(scores)
 plot_keypoints(image, keypoints, scores)
