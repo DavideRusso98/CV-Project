@@ -72,7 +72,7 @@ def get_args_parser(add_help=True):
     parser.add_argument("--model", default="keypointrcnn_resnet50_fpn", type=str, help="model name")
     parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument(
-        "-b", "--batch-size", default=2, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
+        "-b", "--batch-size", default=1, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
     )
     parser.add_argument("--epochs", default=26, type=int, metavar="N", help="number of total epochs to run")
     parser.add_argument(
@@ -98,7 +98,7 @@ def get_args_parser(add_help=True):
         "--lr-scheduler", default="multisteplr", type=str, help="name of lr scheduler (default: multisteplr)"
     )
     parser.add_argument(
-        "--lr-step-size", default=8, type=int, help="decrease lr every step-size epochs (multisteplr scheduler only)"
+        "--lr-step-size", default=2, type=int, help="decrease lr every step-size epochs (multisteplr scheduler only)"
     )
     parser.add_argument(
         "--lr-steps",
@@ -165,12 +165,13 @@ def main(args):
     # Data loading code
     print("Loading data")
 
-    #dataset, num_classes = get_dataset(args.dataset, "train", get_transform(True, args), args.data_path)
-    #dataset_test, _ = get_dataset(args.dataset, "val", get_transform(False, args), args.data_path)
+    #coco_train_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_train.json'
+    #coco_test_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_test.json'
+    #img_dir = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/images/clean'
 
-    coco_train_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_train.json'
-    coco_test_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_test.json'
-    img_dir = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/images/clean'
+    coco_train_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/person_keypoints_val2017.json'
+    coco_test_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/person_keypoints_val2017.json'
+    img_dir = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/val2017'
 
     dataset = datasets.CocoDetection(img_dir, coco_train_ann_path, transform=transforms.ToTensor())
     dataset_test = datasets.CocoDetection(img_dir, coco_test_ann_path, transform=transforms.ToTensor())
@@ -193,8 +194,8 @@ def main(args):
     #data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=train_batch_sampler, num_workers=args.workers, collate_fn=utils.collate_fn)
     #data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, sampler=test_sampler, num_workers=args.workers, collate_fn=utils.collate_fn)
 
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True, num_workers=4, collate_fn=lambda x: tuple(zip(*x)))
-    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=2, shuffle=True, num_workers=4, collate_fn=lambda x: tuple(zip(*x)))
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4)
+    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=True, num_workers=4)
 
     print("Creating model")
     kwargs = {"trainable_backbone_layers": args.trainable_backbone_layers}

@@ -43,9 +43,11 @@ coco = COCO(ann_file)
 
 # Creazione di un dataset COCO
 dataset = datasets.CocoDetection(img_dir, ann_file, transform=transforms.ToTensor())
-model = keypointrcnn_resnet50_fpn(pretrained=False)
-
 num_classes = len(coco.getCatIds()) + 1  # numero di categorie più 1 per lo sfondo
+model = keypointrcnn_resnet50_fpn(pretrained=False,
+                                  pretrained_backbone=True,
+                                  num_classes=num_classes)
+
 model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(
     model.roi_heads.box_predictor.cls_score.in_features,
     num_classes

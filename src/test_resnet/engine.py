@@ -19,10 +19,11 @@ labels (Int64Tensor[N]): the class label for each ground-truth box
 keypoints (FloatTensor[N, K, 3]): the K keypoints location for each of the N instances, in the format [x, y, visibility], where visibility=0 means that the keypoint is not visible.
 """
 def rearrange_data(targets, device):
-    targets = [t[0] for t in targets]
+    #targets = [t[0] for t in targets]
+    targets = targets[0]
     N = len(targets)
     targets = [{
-        'boxes': torchvision.ops.box_convert(torch.tensor(t['boxes']).reshape((1, 4)), 'cxcywh', 'xyxy').to(device),
+        'boxes': torchvision.ops.box_convert(torch.tensor(t['bbox']).reshape((1, 4)), 'cxcywh', 'xyxy').to(device),
         'labels': torch.tensor([1 for _ in range(N)], dtype=torch.int64).to(device),
         'keypoints': torch.tensor(t['keypoints']).reshape(1, -1, 3).to(device)
     } for t in targets]
@@ -54,7 +55,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict)
         losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-        #loss_value = losses_reduced.item()
+        loss_value = losses_reduced.item()
 
         #if not math.isfinite(loss_value):
         #    print(f"Loss is {loss_value}, stopping training")
