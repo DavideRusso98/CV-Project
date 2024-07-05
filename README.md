@@ -25,17 +25,11 @@ Export all conda's dependencies to an environment.yml file:
 conda env export --from-history > environment.yml
 ```
 
-
-## Launches
+## Dataset creation
 
 ### Launch main via blenderproc. Before launching make sure to cd into project root 
 ```bash
 blenderproc run ./src/dataset/main.py ./src/resources/objects3d/ ./src/dataset/output/
-```
-
-### Launch example1 via blenderproc. Before launching make sure to cd into project root
-```bash
-blenderproc run ./src/dataset/example1.py ./src/resources/camera_positions ./src/resources/objects3d/tesla_annotated.blend ./src/dataset/output/
 ```
 
 ### Visualize image with its keypoints in 2D
@@ -48,9 +42,20 @@ blenderproc run ./src/dataset/example1.py ./src/resources/camera_positions ./src
 python src/dataset/visualize.py tesla_0 ./src/dataset/output
 ```
 
-python ./src/resnet/tools/train.py ./src/resnet/configs/my_custom_config.py
+## Training
 
 ### Split dataset into train and test 80/20
 ```bash
- python ./src/dataset/cocosplit.py --having-annotations -s 0.8 ./src/dataset/output/coco_annotations.json ./src/dataset/output/coco_train.json ./src/dataset/output/coco_test.json
+ python ./src/dataset/cocosplit.py --having-annotations -s 0.9 ./src/dataset/output/coco_annotations.json ./src/dataset/output/coco_train_1800.json ./src/dataset/output/coco_test_200.json
+```
+
+
+WS di Riccardo:
+```bash
+python ./src/resnet/inference.py /home/riccardo/Scrivania/UNIVERSITA/Computer Vision and Cognitive Systems/CV-Project/src/resnet/automotive_keypoint_detector.pth ./src/resnet/inference.py /home/riccardo/Scrivania/UNIVERSITA/Computer Vision and Cognitive Systems/CV-Project/src//dataset/output/images/clean/alfa_0.jpg
+```
+
+Alessio:
+```bash
+python ./src/resnet/inference.py ./src/resnet/akd_11.pth ./src/dataset/output/images/clean/alfa_0.jpg
 ```

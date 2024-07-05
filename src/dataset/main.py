@@ -263,10 +263,10 @@ def main():
     args = parser.parse_args()
 
     bproc.init()
-    #coco = init_coco()
-    #image_id = 0
-    coco = load_coco_annotations()
-    image_id = coco["images"][-1]["id"] + 1
+    coco = init_coco()
+    image_id = 0
+    #coco = load_coco_annotations()
+    #image_id = coco["images"][-1]["id"] + 1
     print(f"last saved image_id +1 : {image_id}")
     os.makedirs(os.path.join(args.output_dir, 'images/clean'), exist_ok=True)
     os.makedirs(os.path.join(args.output_dir, 'images/annotated'), exist_ok=True)
@@ -275,7 +275,7 @@ def main():
     scenes_paths = [args.scenes_dir + scene_filename for scene_filename in os.listdir(args.scenes_dir)]
     model_names = [scene_filename.split('_')[0] for scene_filename in os.listdir(args.scenes_dir)]
     model_list = list(zip(scenes_paths, model_names))
-    model_list = model_list[4:5] #todo
+    #model_list = model_list[9:10] #fixme
 
 
     for model_path, model_name in model_list:

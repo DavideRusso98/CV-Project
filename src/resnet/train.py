@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import torch
 import torchvision
 from torchvision.datasets import CocoDetection
@@ -26,10 +28,9 @@ def get_transform():
     return torchvision.transforms.Compose(transforms)
 
 
-# Carica il dataset
 images_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/images/clean/'
-train_annotation_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_train.json'
-test_annotation_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_test.json'
+train_annotation_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_train_1800.json'
+test_annotation_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_test_200.json'
 
 dataset = COCODataset(images_path, train_annotation_path, get_transform())
 dataset_test = COCODataset(images_path, test_annotation_path, get_transform())
@@ -43,7 +44,6 @@ data_loader_test = torch.utils.data.DataLoader(
     collate_fn=lambda x: tuple(zip(*x)))
 
 model = keypointrcnn_resnet50_fpn(weights=KeypointRCNN_ResNet50_FPN_Weights.DEFAULT)
-num_classes = 2
 num_keypoints = 20
 
 in_features = model.roi_heads.keypoint_predictor.kps_score_lowres.in_channels
@@ -51,6 +51,7 @@ model.roi_heads.keypoint_predictor = torchvision.models.detection.keypoint_rcnn.
                                                                                                       num_keypoints)
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 model.to(device)
+print(f"Using device: {device}")
 
 params = [p for p in model.parameters() if p.requires_grad]
 optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
@@ -64,14 +65,17 @@ for epoch in range(num_epochs):
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         loss_dict = model(images, targets)
+        loss = loss_dict['loss_keypoint']
+        losses = sum(loss for loss in loss_dict.values())
         for key, value in loss_dict.items():
             print(f"{key}: {value}", end=' ')
         print('')
-        loss = loss_dict['loss_keypoint']
         optimizer.zero_grad()
-        loss.backward()
+        losses.backward()
         optimizer.step()
-
     lr_scheduler.step()
 
-torch.save(model.state_dict(), 'our_super_model_trained.pth')
+now = datetime.now()
+today = now.strftime("%d-%m")
+torch.save(model.state_dict(), f'./src/resnet/akd_{num_epochs}_{today}.pth')
+print('model saved')
