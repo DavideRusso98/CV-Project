@@ -5,13 +5,14 @@ from dataclasses import dataclass
 import json
 import os
 
-import numpy
 import numpy as np
 import bpy
 import cv2
 import datetime
+
 from blenderproc.python.writer.CocoWriterUtility import _CocoWriterUtility
 from mathutils import Vector
+from matplotlib import pyplot as plt
 
 IMAGE_WIDTH = 800
 IMAGE_HEIGHT = 800
@@ -31,7 +32,7 @@ class KEYPOINT_TYPE(Enum):
     TYPE_3D = 'TYPE_3D'
 
 
-semantic_keypoints = [
+keypoint_semantic_list = [
     "wheel_FL",
     "wheel_FR",
     "wheel_RL",
@@ -70,31 +71,33 @@ class Keypoint:
         return {'type': str(self.type.value), 'semantic': self.semantic, 'location': self.location.tolist()}
 
 
-def is_visible(keypoint3d):
-    bpy.context.view_layer.update()
-    camera_location = bpy.context.scene.camera.location
+def is_visible(keypoint3d, frame_id):
+
+    current_camera_pose = bproc.camera.get_camera_pose(frame_id)
+    camera_location = Vector(get_camera_location(current_camera_pose))
+
     keypoint_location = Vector(keypoint3d.location)
     direction = keypoint_location - camera_location
-    threshold = 0.4 ## empirically found
+    threshold = 0.2
 
     ## cast a ray from the camera in the given direction, returns hit_location if hits something
     hit, hit_location, _, _, _, _ = bpy.context.scene.ray_cast(bpy.context.view_layer.depsgraph,
         origin=camera_location + direction * 0.0001, direction=direction)
 
     ## computes the L2 distance between the point hit by the ray and keypoint actual location
-    distance = numpy.linalg.norm(hit_location - keypoint_location)
-
+    distance = np.linalg.norm(hit_location - keypoint_location)
+    print(f"frame: {frame_id} distance: {distance}")
     #print(f"{keypoint3d.semantic} is visible: {distance < threshold}, distance: {distance}")
     if not hit:
         return False
     return distance < threshold
-    #return True
 
 
 def keypoint_3d_to_2d(keypoint3d: Keypoint, frame_id):
-    if not is_visible(keypoint3d):
+    if not is_visible(keypoint3d, frame_id):
         return False, [0, 0, 0]
-    x, y = bproc.camera.project_points(np.array([keypoint3d.location]), frame_id)[0]
+    projected_points = bproc.camera.project_points(np.array([keypoint3d.location]), frame_id)
+    x, y = projected_points[0]
     return True, [x, y, 2]
 
 
@@ -111,11 +114,11 @@ def extract_3d_keypoints(scene):
 def compute_coco_keypoints(keypoints3d_dict, frame):
     coco_keypoints = []
     num_keypoints = 0
-    for semantic in semantic_keypoints:
-        if semantic not in keypoints3d_dict:
+    for keypoint_name in keypoint_semantic_list:
+        if keypoint_name not in keypoints3d_dict:
             coco_keypoints.extend([0, 0, 0])
             continue
-        visibility, coco_keypoint = keypoint_3d_to_2d(keypoints3d_dict[semantic], frame)
+        visibility, coco_keypoint = keypoint_3d_to_2d(keypoints3d_dict[keypoint_name], frame)
         coco_keypoints.extend(coco_keypoint)
         if visibility:
             num_keypoints += 1
@@ -186,7 +189,7 @@ def coco_default_category(coco):
         "supercategory": "vehicle",
         "id": 1,
         "name": "car",
-        "keypoints": [semantic_keypoints],
+        "keypoints": [keypoint_semantic_list],
         "skeleton": []
     }
     coco["categories"].append(category)
@@ -225,15 +228,11 @@ def write_and_annotate_image_to_file(output_dir, image_id, image_bgr, bbox, coco
     x, y, w, h = bbox
     cv2.rectangle(image_bgr, (x, y), (x + w, y + h), (0, 255, 0), 2)
     i = 0
-    sem_position = 0
     while i < len(coco_keypoints):
         x, y, v = coco_keypoints[i], coco_keypoints[i + 1], coco_keypoints[i + 2]
         x, y = int(round(x)), int(round(y))
         if v != 0:
-            cv2.circle(image_bgr, (x, y), 10, (0, 0, 255), 1, cv2.LINE_4)
-            cv2.putText(image_bgr, semantic_keypoints[sem_position], (x, y), cv2.FONT_ITALIC, 0.6,
-                        (0, 0, 0), 1, cv2.LINE_4, False)
-        sem_position += 1
+            cv2.circle(image_bgr, (x, y), 3, (0, 0, 255), 2, cv2.LINE_4)
         i += 3
     target_path = os.path.join(output_dir, f"images/annotated/{image_id}.jpg")
     cv2.imwrite(target_path, image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
@@ -242,6 +241,9 @@ def write_and_annotate_image_to_file(output_dir, image_id, image_bgr, bbox, coco
 def write_image_to_file(output_dir, image_id, image_bgr):
     target_path = os.path.join(output_dir, f"images/clean/{image_id}.jpg")
     cv2.imwrite(target_path, image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+
+def get_camera_location(transformation_matrix):
+    return transformation_matrix[:3, 3]
 
 
 def add_camera_poses(matrix_list):
@@ -260,13 +262,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('scenes_dir', nargs='?', help="Path to the 3d model directory")
     parser.add_argument('output_dir', nargs='?', help="Path to where the final files will be saved")
+    parser.add_argument('model_number', type=int, help="0 to 9, model number to render")
     args = parser.parse_args()
 
     bproc.init()
-    coco = init_coco()
     image_id = 0
-    #coco = load_coco_annotations()
-    #image_id = coco["images"][-1]["id"] + 1
+    if args.model_number == 0:
+        coco = init_coco()
+    else:
+        coco = load_coco_annotations()
+        image_id = coco["images"][-1]["id"] + 1
     print(f"last saved image_id +1 : {image_id}")
     os.makedirs(os.path.join(args.output_dir, 'images/clean'), exist_ok=True)
     os.makedirs(os.path.join(args.output_dir, 'images/annotated'), exist_ok=True)
@@ -275,8 +280,7 @@ def main():
     scenes_paths = [args.scenes_dir + scene_filename for scene_filename in os.listdir(args.scenes_dir)]
     model_names = [scene_filename.split('_')[0] for scene_filename in os.listdir(args.scenes_dir)]
     model_list = list(zip(scenes_paths, model_names))
-    #model_list = model_list[9:10] #fixme
-
+    model_list = [model_list[args.model_number]]
 
     for model_path, model_name in model_list:
         add_camera_poses(camera_poses)
@@ -297,7 +301,7 @@ def main():
             coco_bbox, coco_segmentation = bbox_and_segmentation(data["instance_segmaps"][frame])
             coco_keypoints, num_keypoints = compute_coco_keypoints(keypoints3d_dict, frame)
             write_image_to_file(args.output_dir, image_filename, color_bgr)
-            #write_and_annotate_image_to_file(args.output_dir, image_filename, color_bgr, coco_bbox, coco_keypoints)
+            write_and_annotate_image_to_file(args.output_dir, image_filename, color_bgr, coco_bbox, coco_keypoints)
             coco_append_image(coco, image_filename, image_id)
             coco_append_keypoints(coco, coco_keypoints, num_keypoints, coco_bbox, coco_segmentation, image_id, 1)
             image_id += 1

@@ -21,7 +21,7 @@ import datetime
 import os
 import time
 
-from torchvision.models.detection import keypointrcnn_resnet50_fpn
+from torchvision.models.detection import keypointrcnn_resnet50_fpn, KeypointRCNN_ResNet50_FPN_Weights
 
 import presets
 import torch
@@ -165,13 +165,13 @@ def main(args):
     # Data loading code
     print("Loading data")
 
-    #coco_train_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_train.json'
-    #coco_test_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_test.json'
-    #img_dir = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/images/clean'
+    coco_train_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_train_1800.json'
+    coco_test_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_test_200.json'
+    img_dir = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/images/clean'
 
-    coco_train_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/person_keypoints_val2017.json'
-    coco_test_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/person_keypoints_val2017.json'
-    img_dir = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/val2017'
+    #coco_train_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/person_keypoints_val2017.json'
+    #coco_test_ann_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/person_keypoints_val2017.json'
+    #img_dir = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/coco_output/val2017'
 
     dataset = datasets.CocoDetection(img_dir, coco_train_ann_path, transform=transforms.ToTensor())
     dataset_test = datasets.CocoDetection(img_dir, coco_test_ann_path, transform=transforms.ToTensor())
@@ -203,7 +203,7 @@ def main(args):
         if args.rpn_score_thresh is not None:
             kwargs["rpn_score_thresh"] = args.rpn_score_thresh
     if not args.weights:
-        model = keypointrcnn_resnet50_fpn(pretrained=False, num_classes=num_classes, num_keypoints=20)
+        model = keypointrcnn_resnet50_fpn(weights=KeypointRCNN_ResNet50_FPN_Weights.DEFAULT)
         model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(
             model.roi_heads.box_predictor.cls_score.in_features,
             num_classes
@@ -262,7 +262,7 @@ def main(args):
             utils.save_on_master(checkpoint, os.path.join(args.output_dir, "checkpoint.pth"))
 
         # evaluate after every epoch
-        #evaluate(model, data_loader_test, device=device)
+        evaluate(model, data_loader_test, device=device)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

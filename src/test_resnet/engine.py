@@ -20,12 +20,11 @@ keypoints (FloatTensor[N, K, 3]): the K keypoints location for each of the N ins
 """
 def rearrange_data(targets, device):
     #targets = [t[0] for t in targets]
-    targets = targets[0]
     N = len(targets)
     targets = [{
-        'boxes': torchvision.ops.box_convert(torch.tensor(t['bbox']).reshape((1, 4)), 'cxcywh', 'xyxy').to(device),
+        'boxes': torchvision.ops.box_convert(torch.tensor(t['boxes']).reshape((1, 4)), 'cxcywh', 'xyxy').to(device),
         'labels': torch.tensor([1 for _ in range(N)], dtype=torch.int64).to(device),
-        'keypoints': torch.tensor(t['keypoints']).reshape(1, -1, 3).to(device)
+        'keypoints': torch.tensor(t['keypoints'], dtype=torch.float32).reshape(1, -1, 3).to(device)
     } for t in targets]
     return targets
 
@@ -48,7 +47,6 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         images = list(image.to(device) for image in images)
         targets = rearrange_data(targets, device)
-
         loss_dict = model(images, targets)
         losses = sum(loss for loss in loss_dict.values())
 
@@ -83,7 +81,7 @@ def _get_iou_types(model):
     if isinstance(model_without_ddp, torchvision.models.detection.MaskRCNN):
         iou_types.append("segm")
     if isinstance(model_without_ddp, torchvision.models.detection.KeypointRCNN):
-        iou_types.append("keypoints")
+            iou_types.append("keypoints")
     return iou_types
 
 

@@ -5,6 +5,7 @@ import os
 import cv2
 import argparse
 
+
 def show_keypoints(im, im_name, keypoints):
     """
     Show keypoints on an image.
@@ -24,6 +25,7 @@ def show_keypoints(im, im_name, keypoints):
     plt.imshow(im, cmap="gray")  # plot image
     plt.show(block=True)
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('model_name', nargs='?', help="car model name")
@@ -34,7 +36,7 @@ def main():
     coco_annotations = os.path.join(args.output_dir, 'coco_annotations.json')
     coco = COCO(coco_annotations)
     coco_dt = coco.loadRes(coco_annotations)
-    cocoEval = COCOeval(coco,coco_dt,'keypoints')
+    cocoEval = COCOeval(coco, coco_dt, 'keypoints')
     print(cocoEval)
     ### load image
     im = cv2.imread(os.path.join(args.output_dir, "images", f"{args.model_name}.jpg"))
@@ -45,9 +47,7 @@ def main():
     anns = coco.loadAnns(annIds)
     keypoints = anns[0]['keypoints']
 
-
     show_keypoints(im, args.model_name, keypoints)
-
 
 
 if __name__ == '__main__':
