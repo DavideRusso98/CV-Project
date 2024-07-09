@@ -1,5 +1,10 @@
+##Demo: python .\src\retrieval\retrieval.py --model .\src\retrieval\akd_15_08-07-2024_00.pth -i .\src\retrieval\images\pexels-mikebirdy-4639907.jpg --images .\src\dataset\output\images\clean\ --json .\src\retrieval\dataset.json
+
+
+
 import argparse
 import os
+import json
 from torchvision.datasets import CocoDetection
 import torch
 import torchvision
@@ -9,7 +14,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
 from utils import keypoint_similarity
-
+#jeep_192.jpg pexels-mikebirdy-4639907.jpg
+# pexels-photo-7808349.jpeg 
 NUM_KPT = 20
 
 class COCODataset(CocoDetection):
@@ -46,24 +52,61 @@ class Inference:
     """
     Inference class to make prediction with a given pre-trained model over a given image.
     Params:
-        image: Preprocessed
+        image: Preprocessed image
+        model: Pre-trained model
     """
     def __init__(self,image,model):
         self.image = image
         self.model = model
-    
-    def get_kpts(self):
 
+    def get_kpts(self, is_th = False, th = 50):
+        """
+        Make predictions with given image and return a keypoint tensor with higher scores.
+        Params: 
+            is_th: Boolean variable, if True it makes thresholding otherwise not.
+            th: Threshold value.
+
+        Return:
+            Keypoint tensor with shape [20,3].
+        """
         self.model.eval()
         with torch.no_grad():
             predictions = self.model([self.image])
         self.boxes = predictions[0]['boxes'].cpu().detach().numpy()
         self.keypoints = predictions[0]['keypoints'].cpu().detach().numpy()
         self.scores = predictions[0]['scores'].cpu().detach().numpy()
+        self.keypoint_scores = predictions[0]['keypoints_scores'].cpu().detach().numpy()
         # print(predictions[0]['keypoints_scores'])
-        return self.keypoints[self.scores.argmax()]
+        kpts = self.keypoints[self.scores.argmax()]
+        if is_th:
+            kpts_th = self.thresholding(th)
+            kpts = kpts_th
+        return kpts
 
+    
+    def thresholding(self,th):
+        """
+        Threshold function. 
+        If scores is below a given thershold value, set the corresponding element in the keypoints tensor to zero.
+        Params:
+            th: Threshold value.
+        Return:
+            Thresholded keypoint tensor. 
+        """
+        scores = self.keypoint_scores[self.scores.argmax()]
+        kpts = self.keypoints[self.scores.argmax()]
+        for i in range(0,len(scores)):
+            # print(scores[i])
+            if scores[i] < th:
+                kpts[i] = torch.tensor([0.0, 0.0, 0.0])
+        return kpts
+    
     def get_area(self):
+        """
+        Get H,W of higher score bbox for OKS evaluation.
+        Return:
+            A tensor with [2] shape.
+        """
         bbox = torch.tensor(self.boxes[self.scores.argmax()]).reshape(4)
         return bbox[-2:]
     
@@ -113,11 +156,20 @@ def plot_images(image_path,higher_score_path, score):
     plt.imshow(retrival_image)
     plt.show()
 
+def get_tensors(path):
+    with open(path, 'r') as json_file:
+        data = json.load(json_file)
+    
+    data = {key: [torch.tensor(item) for item in value] for key, value in data.items()}
+    
+    return data
 def main():
     parser = argparse.ArgumentParser(description='Train keypoints network')
     parser.add_argument('--model', type=str, help='Path to .pth model file.')
     parser.add_argument('-i', dest='retrieval_image', type=str, help='Path to retrival image')
     parser.add_argument('--images', dest='folder_images', type=str, help='Path to retrival image')
+    parser.add_argument('--json', dest='json_path', type=str, help='Path to retrival image')
+
 
     args = parser.parse_args()
     device = torch.device('cpu')
@@ -131,27 +183,38 @@ def main():
     retrieval_kpts = retrieval_image.get_kpts()
     pd_kpts = oks_reshape(retrieval_kpts)
 
-    batch_image = 20
+    batch_image = 0
     image_folder = args.folder_images
-
+    
     KPTS_OKS_SIGMAS_UNIF = torch.ones(NUM_KPT)/NUM_KPT ## Guardare sta roba
+    # oks_tensor = {}
     oks = {}
-    ## Keypoints eval for the first 'batch_image' images
-    for filename in os.listdir(image_folder):
-        if batch_image == 0:
-            break
-        file_path = os.path.join(image_folder, filename)
-        ## Do inference over gt_image 
-        image = preprocess_image(file_path)
-        gt_image = Inference(image,model)
-        gt_kpts = gt_image.get_kpts()
-        print(gt_kpts)
-        gt_kpts = oks_reshape(gt_kpts)
-        area = gt_image.get_area()
+    oks_tensor = get_tensors(args.json_path)
+    # print(len(oks_tensor))
+    for filename,[gt_kpts,area] in oks_tensor.items():
         similarity = keypoint_similarity(gt_kpts,pd_kpts,KPTS_OKS_SIGMAS_UNIF, area)
         oks[filename] = similarity
-        batch_image-=1
+        batch_image+=1
         print(f"Images left: {batch_image}")
+    
+
+
+    ## Keypoints eval for the first 'batch_image' images
+    # for filename in os.listdir(image_folder):
+    #     # if batch_image == 0:
+    #     #     break
+    #     file_path = os.path.join(image_folder, filename)
+    #     ## Do inference over gt_image 
+    #     image = preprocess_image(file_path)
+    #     gt_image = Inference(image,model)
+    #     gt_kpts = gt_image.get_kpts()
+    #     # print(gt_kpts)
+    #     gt_kpts = oks_reshape(gt_kpts)
+    #     area = gt_image.get_area()
+    #     similarity = keypoint_similarity(gt_kpts,pd_kpts,KPTS_OKS_SIGMAS_UNIF, area)
+    #     oks[filename] = similarity
+    #     batch_image+=1
+    #     print(f"Images left: {batch_image}")
     
     print(oks)
     higher_score = max(oks.items(),key=lambda x: torch.max(x[1]).item())
