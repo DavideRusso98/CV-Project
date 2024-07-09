@@ -3,14 +3,12 @@
 
 
 import argparse
-import os
 import json
 from torchvision.datasets import CocoDetection
 import torch
 import torchvision
 import torchvision.transforms as T
 from PIL import Image
-import numpy as np
 from matplotlib import pyplot as plt
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
 from utils import keypoint_similarity
