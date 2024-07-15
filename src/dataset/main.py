@@ -17,15 +17,6 @@ from matplotlib import pyplot as plt
 IMAGE_WIDTH = 800
 IMAGE_HEIGHT = 800
 
-"""
-README:
-While rendering multiple models an ERROR occurs:
-ERROR (bke.lib_id_delete): source/blender/blenkernel/intern/lib_id_delete.c:357 id_delete: Deleting IMRender Result which still has 1 users (including 0 'extra' shallow users)
-
-Ignore it, the script is working. 
-See issue: https://github.com/DLR-RM/BlenderProc/issues/997
-"""
-
 
 class KEYPOINT_TYPE(Enum):
     TYPE_2D = 'TYPE_2D'
@@ -71,6 +62,16 @@ class Keypoint:
         return {'type': str(self.type.value), 'semantic': self.semantic, 'location': self.location.tolist()}
 
 
+def valid_range(min_value, max_value):
+    def validate(value):
+        ivalue = int(value)
+        if ivalue < min_value or ivalue > max_value:
+            raise argparse.ArgumentTypeError(f"input should be a number between {min_value} and {max_value}")
+        return ivalue
+
+    return validate
+
+
 def is_visible(keypoint3d, frame_id):
 
     current_camera_pose = bproc.camera.get_camera_pose(frame_id)
@@ -86,8 +87,6 @@ def is_visible(keypoint3d, frame_id):
 
     ## computes the L2 distance between the point hit by the ray and keypoint actual location
     distance = np.linalg.norm(hit_location - keypoint_location)
-    print(f"frame: {frame_id} distance: {distance}")
-    #print(f"{keypoint3d.semantic} is visible: {distance < threshold}, distance: {distance}")
     if not hit:
         return False
     return distance < threshold
@@ -125,8 +124,8 @@ def compute_coco_keypoints(keypoints3d_dict, frame):
     return coco_keypoints, num_keypoints
 
 
-def load_coco_annotations():
-    with open('./src/dataset/output/coco_annotations.json', 'r') as file:
+def load_coco_annotations(output_dir):
+    with open(os.path.join(output_dir, 'coco_annotations.json'), 'r') as file:
         json_data = file.read()
     return json.loads(json_data)
 
@@ -196,23 +195,22 @@ def coco_default_category(coco):
 
 
 def write_to_json(coco, output_dir):
-    filename = output_dir + "coco_annotations.json"
+    filename = os.path.join(output_dir, "coco_annotations.json")
     with open(filename, "w") as f:
         pretty = json.dumps(coco, indent=4, separators=(',', ': '))
         f.write(pretty)
 
 
-def load_transf_matrix_list() -> list:
-    """
-    Load transformation matrix list from a JSON file.
+def load_transf_matrix_list(camera_poses: int) -> list:
 
-    :return: The first two transformation matrices in the list.
-    """
-    with open('./src/dataset/transforms_train.json', 'r') as file:
+    if camera_poses is None:
+        camera_poses = 200
+
+    with open('./src/resources/camera_poses.json', 'r') as file:
         json_data = file.read()
-    data = json.loads(json_data)
-    transformation_matrix_list = [frame['transform_matrix'] for frame in data['frames']]
-    return transformation_matrix_list
+
+    transformation_matrix_list = json.loads(json_data)
+    return transformation_matrix_list[:camera_poses]
 
 
 def init_light_and_resolution(image_width, image_height):
@@ -262,22 +260,25 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('scenes_dir', nargs='?', help="Path to the 3d model directory")
     parser.add_argument('output_dir', nargs='?', help="Path to where the final files will be saved")
-    parser.add_argument('model_number', type=int, help="0 to 9, model number to render")
+    parser.add_argument('model_number', type=valid_range(0, 9), help="0 to 9, model number to render")
+    parser.add_argument('--init-coco', action='store_true', help="Flag used to init a new coco_annotations.json")
+    parser.add_argument('--camera_poses', type=valid_range(1, 200), help="1 to 200, number of camera poses to consider")
     args = parser.parse_args()
 
     bproc.init()
     image_id = 0
-    if args.model_number == 0:
+    if args.init_coco:
+        print("Creating a new coco_annotations.json!")
         coco = init_coco()
     else:
-        coco = load_coco_annotations()
+        coco = load_coco_annotations(args.output_dir)
         image_id = coco["images"][-1]["id"] + 1
-    print(f"last saved image_id +1 : {image_id}")
+
     os.makedirs(os.path.join(args.output_dir, 'images/clean'), exist_ok=True)
     os.makedirs(os.path.join(args.output_dir, 'images/annotated'), exist_ok=True)
 
-    camera_poses = load_transf_matrix_list()
-    scenes_paths = [args.scenes_dir + scene_filename for scene_filename in os.listdir(args.scenes_dir)]
+    camera_poses = load_transf_matrix_list(args.camera_poses)
+    scenes_paths = [os.path.join(args.scenes_dir,scene_filename) for scene_filename in os.listdir(args.scenes_dir)]
     model_names = [scene_filename.split('_')[0] for scene_filename in os.listdir(args.scenes_dir)]
     model_list = list(zip(scenes_paths, model_names))
     model_list = [model_list[args.model_number]]
@@ -285,7 +286,7 @@ def main():
     for model_path, model_name in model_list:
         add_camera_poses(camera_poses)
         init_light_and_resolution(IMAGE_WIDTH, IMAGE_HEIGHT)
-        bproc.renderer.set_world_background([1, 1, 1])  # this should set the background to black
+        bproc.renderer.set_world_background([1, 1, 1])
         scene = bproc.loader.load_blend(model_path)
         for j, obj in enumerate(scene):
             obj.set_cp("category_id", j + 1)
