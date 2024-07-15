@@ -9,8 +9,8 @@
 
 ### Venv
 How to activate venv
+Alessio:
 ```bash
-source /home/alesv/.virtualenvs/CV-Project/bin/activate
 source /home/alesvale/.virtualenvs/CV-Project/bin/activate
 ```
 

@@ -36,7 +36,6 @@ class CocoEvaluator:
 
             coco_eval.cocoDt = coco_dt
             coco_eval.params.imgIds = list(img_ids)
-
             img_ids, eval_imgs = evaluate(coco_eval)
 
             self.eval_imgs[iou_type].append(eval_imgs)
@@ -183,7 +182,6 @@ def create_common_coco_eval(coco_eval, img_ids, eval_imgs):
 
     coco_eval.evalImgs = eval_imgs
     coco_eval.params.imgIds = img_ids
-    coco_eval.params.kpt_oks_sigmas = np.array([.05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05, .05])
     coco_eval._paramsEval = copy.deepcopy(coco_eval.params)
 
 

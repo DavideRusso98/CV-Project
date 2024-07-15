@@ -170,7 +170,7 @@ def coco_append_keypoints(coco, keypoints, num_keypoints, bbox, segmentation, im
         "id": image_id + 10000,
         "num_keypoints": num_keypoints,
         "keypoints": keypoints,
-        "boxes": bbox,
+        "bbox": bbox,
         "segmentation": segmentation,
         "image_id": image_id,
         "category_id": category_id,

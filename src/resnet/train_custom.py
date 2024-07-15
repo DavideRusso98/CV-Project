@@ -1,10 +1,15 @@
-from datetime import datetime, time
+import argparse
+from datetime import time
 
 import torch
 import torchvision
-from torchvision.models.detection import keypointrcnn_resnet50_fpn
+from torch import nn
+from torchvision.models import resnet50
 from torchvision.models.detection.anchor_utils import AnchorGenerator
-from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor
+from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
+from torchvision.models.detection.keypoint_rcnn import KeypointRCNN
+
+from resnet.components import KeypointHead
 from resnet.utils import COCODataset, get_transform, MetricLogger, SmoothedValue
 from test_resnet.coco_eval import CocoEvaluator
 
@@ -47,73 +52,76 @@ def evaluate(model, data_loader, device):
     return coco_evaluator
 
 
+def compute_loss(loss_dict, alpha=1.):
+    loss_classifier = loss_dict['loss_classifier']
+    loss_box_reg = loss_dict['loss_box_reg']
+    loss_keypoint = loss_dict['loss_keypoint']
+    loss_objectness = loss_dict['loss_objectness']
+    loss_rpn_box_reg = loss_dict['loss_rpn_box_reg']
+    return sum([loss_classifier, loss_box_reg, alpha * loss_keypoint, loss_objectness, loss_rpn_box_reg])
+
+
 def train_epoch(data_loader, model, optimizer, device, epoch):
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
 
     for images, targets in metric_logger.log_every(data_loader, 20, f"Epoch: [{epoch}]"):
         optimizer.zero_grad()
-
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) if torch.is_tensor(v) else v for k, v in t.items()}
                    for t in targets]
         loss_dict = model(images, targets)
-        losses = sum(loss for loss in loss_dict.values())
+        losses = compute_loss(loss_dict, alpha=1.1)
         losses.backward()
         optimizer.step()
-
         metric_logger.update(loss=losses, **loss_dict)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
 
-def main():
-    images_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/images/clean/'
-    train_annotation_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_train_1800.json'
-    test_annotation_path = '/mnt/c/Users/alesv/PycharmProjects/CV-Project/src/dataset/output/coco_test_200.json'
+def get_model(num_classes=2, num_keypoints=20, trainable_layers=3):
+    #backbone = wide_resnet50_2(progress=True, norm_layer=nn.BatchNorm2d) ## troppo tempo: 2 ore per epoca
+    backbone = resnet50(progress=True, norm_layer=nn.BatchNorm2d)
+    backbone = _resnet_fpn_extractor(backbone, trainable_layers)
+    keypoint_head = KeypointHead(backbone.out_channels, tuple(512 for _ in range(10)))
+    anchor_generator = AnchorGenerator(sizes=(32, 64, 128, 256, 512),
+                                       aspect_ratios=(0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0))
+    box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(1024, num_classes)
+    return KeypointRCNN(backbone,
+                         num_keypoints=num_keypoints,
+                         keypoint_head=keypoint_head,
+                         anchor_generator=anchor_generator,
+                         box_predictor=box_predictor)
 
-    dataset = COCODataset(images_path, train_annotation_path, get_transform())
-    dataset_test = COCODataset(images_path, test_annotation_path, get_transform())
+
+def main():
+    parser = argparse.ArgumentParser(description='Train keypoints network')
+    parser.add_argument('images', type=str, help='Path to images dir')
+    parser.add_argument('train', type=str, help='Path to train .json')
+    parser.add_argument('--test', type=str, help='Path to test .json')
+    args = parser.parse_args()
+
+    dataset = COCODataset(args.images, args.train, get_transform())
 
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=4, shuffle=True, num_workers=4,
         collate_fn=lambda x: tuple(zip(*x)))
 
-    data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=2, shuffle=False, num_workers=4,
-        collate_fn=lambda x: tuple(zip(*x)))
-
-    num_keypoints = 20
-    num_classes = 2
-    num_epochs = 15
-
-    anchor_generator = AnchorGenerator(sizes=(32, 64, 128, 256, 512), aspect_ratios=(0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0))
-    model = keypointrcnn_resnet50_fpn(num_classes=num_classes,
-                                      num_keypoints=num_keypoints,
-                                      anchor_generator=anchor_generator)
-    in_features = model.roi_heads.keypoint_predictor.kps_score_lowres.in_channels
-    model.roi_heads.keypoint_predictor = KeypointRCNNPredictor(in_features, num_keypoints)
-    model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(
-        model.roi_heads.box_predictor.cls_score.in_features,
-        num_classes)
-
+    NUM_EPOCHS = 8
+    model = get_model()
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
     print(f"Using device: {device}")
 
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
-    #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
-    for epoch in range(num_epochs):
+    for epoch in range(NUM_EPOCHS):
         model.train()
         train_epoch(data_loader, model, optimizer, device, epoch)
         lr_scheduler.step()
-        #model.eval()
 
-    now = datetime.now()
-    today = now.strftime("%d-%m-%Y_%H")
-    torch.save(model.state_dict(), f'./src/resnet/akd_{num_epochs}_{today}.pth')
+    torch.save(model.state_dict(), f'./src/resnet/designed/wideresnet_4.pth')
     print('model saved')
 
 

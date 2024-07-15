@@ -14,6 +14,14 @@ def get_transform():
     return torchvision.transforms.Compose(transforms)
 
 
+def threshold_keypoints(pred_keypoints, keypoints_scores, threshold=8):
+    thresholded_keypoints = torch.zeros((20,3))
+    for i, score in enumerate(keypoints_scores):
+        if score > threshold:
+            thresholded_keypoints[i] = torch.tensor(pred_keypoints[i])
+    return thresholded_keypoints
+
+
 class SmoothedValue:
     """Track a series of values and provide access to smoothed values over a
     window or the global series average.
@@ -153,10 +161,11 @@ class COCODataset(CocoDetection):
         img, target = super(COCODataset, self).__getitem__(idx)
         img_id = self.ids[idx]
         anno = self.coco.loadAnns(self.coco.getAnnIds(imgIds=img_id))
-        bbox_yxhw = torch.tensor(anno[0]['boxes']).reshape(1, 4)
+        bbox_yxhw = torch.tensor(anno[0]['bbox']).reshape(1, 4)
         imgs = self.coco.loadImgs(ids=[img_id])
 
         target = {
+            'image_id': img_id,
             'img_name': imgs[0]['file_name'],
             'boxes': torchvision.ops.box_convert(bbox_yxhw, 'xywh', 'xyxy'),
             'labels': torch.tensor([1 for _ in range(1)], dtype=torch.int64),
@@ -167,6 +176,7 @@ class COCODataset(CocoDetection):
 
 def plot_keypoints(image, keypoints, pred_keypoints, bbox, pred_bbox, dest_dir, image_id):
     fig, ax = plt.subplots(1)
+    fig.set_size_inches(8, 8)
     ax.imshow(image)
     plt.axis('off')
 
