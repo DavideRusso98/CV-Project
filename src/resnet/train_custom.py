@@ -1,4 +1,5 @@
 import argparse
+import os
 from datetime import time
 
 import torch
@@ -9,7 +10,7 @@ from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
 from torchvision.models.detection.keypoint_rcnn import KeypointRCNN
 
-from resnet.components import KeypointHead
+from resnet.components import KeypointHead, AutomotiveKeypointDetector
 from resnet.utils import COCODataset, get_transform, MetricLogger, SmoothedValue
 from test_resnet.coco_eval import CocoEvaluator
 
@@ -78,7 +79,7 @@ def train_epoch(data_loader, model, optimizer, device, epoch):
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
         
-def modify_resnet_for_dilation(backbone, dilation=2):
+def modify_resnet_dilation(backbone, dilation=2):
     for name, module in backbone.named_children():
         if 'layer4' in name:  # Modifica solo layer4 per questo esempio
             for sub_name, sub_module in module.named_children():
@@ -92,10 +93,10 @@ def modify_resnet_for_dilation(backbone, dilation=2):
                             nn_module.padding = (dilation, dilation)
     return backbone
 
+
 def get_model(num_classes=2, num_keypoints=20, trainable_layers=3):
-    #backbone = wide_resnet50_2(progress=True, norm_layer=nn.BatchNorm2d) ## troppo tempo: 2 ore per epoca
     backbone = resnet50(progress=True, norm_layer=nn.BatchNorm2d)
-    backbone = modify_resnet_for_dilation(backbone)
+    backbone = modify_resnet_dilation(backbone)
     backbone = _resnet_fpn_extractor(backbone, trainable_layers)
     keypoint_head = KeypointHead(backbone.out_channels, tuple(512 for _ in range(10)))
     anchor_generator = AnchorGenerator(sizes=(32, 64, 128, 256, 512),
@@ -113,16 +114,17 @@ def main():
     parser.add_argument('images', type=str, help='Path to images dir')
     parser.add_argument('train', type=str, help='Path to train .json')
     parser.add_argument('--test', type=str, help='Path to test .json')
+    parser.add_argument('--out', '-o', required=True, dest='output_dir', type=str, help='Output directory')
+
     args = parser.parse_args()
 
     dataset = COCODataset(args.images, args.train, get_transform())
-
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=4, shuffle=True, num_workers=4,
         collate_fn=lambda x: tuple(zip(*x)))
 
-    NUM_EPOCHS = 8
-    model = get_model()
+    NUM_EPOCHS = 1
+    model = AutomotiveKeypointDetector()
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
     print(f"Using device: {device}")
@@ -136,7 +138,9 @@ def main():
         train_epoch(data_loader, model, optimizer, device, epoch)
         lr_scheduler.step()
 
-    torch.save(model.state_dict(), f'./src/resnet/designed/wideresnet_4.pth')
+
+    os.makedirs(args.output_dir, exist_ok=True)
+    torch.save(model.state_dict(), os.path.join(args.output_dir, 'last_model_000.pth'))
     print('model saved')
 
 

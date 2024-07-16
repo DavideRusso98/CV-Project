@@ -2,6 +2,9 @@ import os
 from collections import deque, defaultdict
 import datetime
 import time
+
+import cv2
+import numpy as np
 import torch
 import torchvision
 from matplotlib import pyplot as plt
@@ -14,7 +17,27 @@ def get_transform():
     return torchvision.transforms.Compose(transforms)
 
 
-def threshold_keypoints(pred_keypoints, keypoints_scores, threshold=8):
+def extract_probs_from_scores(scores):
+    mean = torch.mean(scores)
+    std = torch.std(scores)
+    standardized_scores = (scores - mean) / std
+    return torch.sigmoid(standardized_scores)
+
+
+def compute_coco_areas(coco):
+    ann_ids = coco.getAnnIds()
+    for ann_id in ann_ids:
+        ann = coco.loadAnns(ann_id)[0]
+        if 'segmentation' not in ann or not ann['segmentation']:
+            continue
+        annotation = ann['segmentation'][0]
+        segmentation = np.reshape(np.array(annotation, dtype=np.float32), (-1, 2))
+        area = cv2.contourArea(segmentation)
+        ann['area'] = area
+    return coco
+
+
+def threshold_keypoints(pred_keypoints, keypoints_scores, threshold=0.5):
     thresholded_keypoints = torch.zeros((20,3))
     for i, score in enumerate(keypoints_scores):
         if score > threshold:
