@@ -77,10 +77,25 @@ def train_epoch(data_loader, model, optimizer, device, epoch):
         metric_logger.update(loss=losses, **loss_dict)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
+        
+def modify_resnet_for_dilation(backbone, dilation=2):
+    for name, module in backbone.named_children():
+        if 'layer4' in name:  # Modifica solo layer4 per questo esempio
+            for sub_name, sub_module in module.named_children():
+                if isinstance(sub_module, nn.Conv2d):
+                    sub_module.dilation = (dilation, dilation)
+                    sub_module.padding = (dilation, dilation)
+                elif isinstance(sub_module, nn.Sequential):
+                    for nn_name, nn_module in sub_module.named_children():
+                        if isinstance(nn_module, nn.Conv2d):
+                            nn_module.dilation = (dilation, dilation)
+                            nn_module.padding = (dilation, dilation)
+    return backbone
 
 def get_model(num_classes=2, num_keypoints=20, trainable_layers=3):
     #backbone = wide_resnet50_2(progress=True, norm_layer=nn.BatchNorm2d) ## troppo tempo: 2 ore per epoca
     backbone = resnet50(progress=True, norm_layer=nn.BatchNorm2d)
+    backbone = modify_resnet_for_dilation(backbone)
     backbone = _resnet_fpn_extractor(backbone, trainable_layers)
     keypoint_head = KeypointHead(backbone.out_channels, tuple(512 for _ in range(10)))
     anchor_generator = AnchorGenerator(sizes=(32, 64, 128, 256, 512),
