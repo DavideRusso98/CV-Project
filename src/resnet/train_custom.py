@@ -123,7 +123,7 @@ def main():
         dataset, batch_size=4, shuffle=True, num_workers=4,
         collate_fn=lambda x: tuple(zip(*x)))
 
-    NUM_EPOCHS = 1
+    NUM_EPOCHS = 8
     model = AutomotiveKeypointDetector()
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
@@ -138,9 +138,8 @@ def main():
         train_epoch(data_loader, model, optimizer, device, epoch)
         lr_scheduler.step()
 
-
     os.makedirs(args.output_dir, exist_ok=True)
-    torch.save(model.state_dict(), os.path.join(args.output_dir, 'last_model_000.pth'))
+    torch.save(model.state_dict(), os.path.join(args.output_dir, 'custom_dilation.pth'))
     print('model saved')
 
 

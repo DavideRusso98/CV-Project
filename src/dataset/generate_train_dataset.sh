@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 
 ROOT_PATH="/mnt/c/Users/alesv/PycharmProjects/AutomotiveKeypointDetector/"
 RELATIVE_OUTPUT_PATH="./src/dataset/output2"
