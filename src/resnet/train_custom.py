@@ -62,7 +62,7 @@ def compute_loss(loss_dict, alpha=1.):
     return sum([loss_classifier, loss_box_reg, alpha * loss_keypoint, loss_objectness, loss_rpn_box_reg])
 
 
-def train_epoch(data_loader, model, optimizer, device, epoch):
+def train_epoch(data_loader, model, optimizer, device, epoch, alpha):
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
 
@@ -72,7 +72,7 @@ def train_epoch(data_loader, model, optimizer, device, epoch):
         targets = [{k: v.to(device) if torch.is_tensor(v) else v for k, v in t.items()}
                    for t in targets]
         loss_dict = model(images, targets)
-        losses = compute_loss(loss_dict, alpha=1.1)
+        losses = compute_loss(loss_dict, alpha=alpha)
         losses.backward()
         optimizer.step()
         metric_logger.update(loss=losses, **loss_dict)
@@ -123,7 +123,10 @@ def main():
         dataset, batch_size=4, shuffle=True, num_workers=4,
         collate_fn=lambda x: tuple(zip(*x)))
 
+    ### Hyperparameters
     NUM_EPOCHS = 8
+    alpha = 1.2
+
     model = AutomotiveKeypointDetector()
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
@@ -135,11 +138,11 @@ def main():
 
     for epoch in range(NUM_EPOCHS):
         model.train()
-        train_epoch(data_loader, model, optimizer, device, epoch)
+        train_epoch(data_loader, model, optimizer, device, epoch, alpha)
         lr_scheduler.step()
 
     os.makedirs(args.output_dir, exist_ok=True)
-    torch.save(model.state_dict(), os.path.join(args.output_dir, 'custom_dilation.pth'))
+    torch.save(model.state_dict(), os.path.join(args.output_dir, 'akd-2.1.pth'))
     print('model saved')
 
 

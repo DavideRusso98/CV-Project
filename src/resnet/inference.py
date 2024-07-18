@@ -4,9 +4,14 @@ import os
 import time
 import torch
 import torchvision
+from torch import nn
+from torchvision.models import resnet50
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
 from torchvision.models.detection.anchor_utils import AnchorGenerator
-from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor
+from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
+from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor, KeypointRCNN
+
+from resnet.components import AutomotiveKeypointDetector, KeypointHead
 from resnet.train_default import COCODataset
 from resnet.utils import get_transform, plot_keypoints, threshold_keypoints, MetricLogger, compute_coco_areas, \
     extract_probs_from_scores
@@ -25,6 +30,19 @@ def get_default_model(num_classes=2, num_keypoints=20):
         model.roi_heads.box_predictor.cls_score.in_features, num_classes)
     return model
 
+### Model linked to akd-2.0.pth
+def get_custom_model(num_classes=2, num_keypoints=20, trainable_layers=3):
+    backbone = resnet50(progress=True, norm_layer=nn.BatchNorm2d)
+    backbone = _resnet_fpn_extractor(backbone, trainable_layers)
+    keypoint_head = KeypointHead(backbone.out_channels, tuple(512 for _ in range(10)))
+    anchor_generator = AnchorGenerator(sizes=(32, 64, 128, 256, 512),
+                                       aspect_ratios=(0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0))
+    box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(1024, num_classes)
+    return KeypointRCNN(backbone,
+                         num_keypoints=num_keypoints,
+                         keypoint_head=keypoint_head,
+                         anchor_generator=anchor_generator,
+                         box_predictor=box_predictor)
 
 def main():
     parser = argparse.ArgumentParser(description='Inference keypoints')
@@ -38,7 +56,8 @@ def main():
 
     device = torch.device('cuda')
     #model = AutomotiveKeypointDetector()
-    model = get_default_model()
+    #model = get_default_model()
+    model = get_custom_model()
     model.load_state_dict(torch.load(args.model, map_location=device))
     model.eval()
     dataset_test = COCODataset(args.image_folder, args.coco_test, get_transform())
