@@ -55,9 +55,12 @@ def main():
     os.makedirs(args.dest_dir, exist_ok=True)
 
     device = torch.device('cuda')
-    #model = AutomotiveKeypointDetector()
+
+    ### Model Pick
+    model = AutomotiveKeypointDetector(kh_depth = 6, dilation = 2)
     #model = get_default_model()
-    model = get_custom_model()
+    #model = get_custom_model()
+
     model.load_state_dict(torch.load(args.model, map_location=device))
     model.eval()
     dataset_test = COCODataset(args.image_folder, args.coco_test, get_transform())

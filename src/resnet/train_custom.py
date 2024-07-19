@@ -124,10 +124,13 @@ def main():
         collate_fn=lambda x: tuple(zip(*x)))
 
     ### Hyperparameters
-    NUM_EPOCHS = 8
+    NUM_EPOCHS = 15
     alpha = 1.2
+    dilation = 2
+    kh_depth = 6
+    model_name = 'akd-2.4.pth'
 
-    model = AutomotiveKeypointDetector()
+    model = AutomotiveKeypointDetector(kh_depth = kh_depth, dilation=dilation)
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
     print(f"Using device: {device}")
@@ -142,7 +145,7 @@ def main():
         lr_scheduler.step()
 
     os.makedirs(args.output_dir, exist_ok=True)
-    torch.save(model.state_dict(), os.path.join(args.output_dir, 'akd-2.1.pth'))
+    torch.save(model.state_dict(), os.path.join(args.output_dir, model_name))
     print('model saved')
 
 

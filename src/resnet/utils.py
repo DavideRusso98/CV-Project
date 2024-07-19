@@ -225,6 +225,6 @@ def plot_keypoints(image, keypoints, pred_keypoints, bbox, pred_bbox, dest_dir, 
         circle = plt.Circle((x, y), 2, color='red', fill=True)
         ax.add_patch(circle)
 
-    image_name = f'pred_{image_id}.jpg'
+    image_name = f'pred_{image_id}'
     plt.savefig(os.path.join(dest_dir, image_name))
     plt.close()

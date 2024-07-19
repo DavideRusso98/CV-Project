@@ -9,13 +9,13 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 class AutomotiveKeypointDetector(KeypointRCNN):
 
-    def __init__(self, dilation=2, num_classes=2, num_keypoints=20):
+    def __init__(self, kh_depth=4, dilation=2, num_classes=2, num_keypoints=20):
         anchor_generator = AnchorGenerator(sizes=(32, 64, 128, 256, 512), aspect_ratios=(0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0))
         backbone = resnet50(progress=True, norm_layer=nn.BatchNorm2d)
         backbone = _resnet_fpn_extractor(backbone, 3)
         self.add_dilation_to_backbone(backbone, dilation)
         box_predictor = FastRCNNPredictor(1024, num_classes)
-        keypoint_head = KeypointHead(backbone.out_channels, tuple(512 for _ in range(4)))
+        keypoint_head = KeypointHead(backbone.out_channels, tuple(512 for _ in range(kh_depth)))
         super().__init__(backbone,
                             num_keypoints=num_keypoints,
                             anchor_generator=anchor_generator,
