@@ -124,11 +124,11 @@ def main():
         collate_fn=lambda x: tuple(zip(*x)))
 
     ### Hyperparameters
-    NUM_EPOCHS = 15
+    NUM_EPOCHS = 8
     alpha = 1.2
     dilation = 2
-    kh_depth = 6
-    model_name = 'akd-2.4.pth'
+    kh_depth = 4
+    model_name = 'akd-3.0.pth'
 
     model = AutomotiveKeypointDetector(kh_depth = kh_depth, dilation=dilation)
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')

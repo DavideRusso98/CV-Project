@@ -56,9 +56,12 @@ def main():
 
     device = torch.device('cuda')
 
+    dilation = 2
+    kh_depth = 4
+
     ### Model Pick
-    model = AutomotiveKeypointDetector(kh_depth = 6, dilation = 2)
-    #model = get_default_model()
+    #model = AutomotiveKeypointDetector(kh_depth = kh_depth, dilation = dilation)
+    model = get_default_model()
     #model = get_custom_model()
 
     model.load_state_dict(torch.load(args.model, map_location=device))

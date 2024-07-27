@@ -82,7 +82,7 @@ def main():
 
     num_keypoints = 20
     num_classes = 2
-    num_epochs = 8
+    num_epochs = 11
 
     anchor_generator = AnchorGenerator(sizes=(32, 64, 128, 256, 512), aspect_ratios=(0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0))
     model = keypointrcnn_resnet50_fpn(num_classes=num_classes,
@@ -108,7 +108,7 @@ def main():
         train_epoch(data_loader, model, optimizer, device, epoch)
         lr_scheduler.step()
 
-    torch.save(model.state_dict(), f'./src/resnet/trained_models/akd-1.0.pth')
+    torch.save(model.state_dict(), f'./src/resnet/trained_models/akd-1.1.pth')
     print('model saved')
     print(f'epochs: {num_epochs}')
 
