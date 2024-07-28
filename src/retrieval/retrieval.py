@@ -11,6 +11,8 @@ import torchvision.transforms as T
 from PIL import Image
 from matplotlib import pyplot as plt
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
+
+from resnet.components import AutomotiveKeypointDetector
 from utils import keypoint_similarity, Inference
 
 #jeep_192.jpg pexels-mikebirdy-4639907.jpg
@@ -95,7 +97,10 @@ def main():
     device = torch.device('cpu')
     image_path = args.retrieval_image
     image = preprocess_image(image_path)
-    model = keypointrcnn_resnet50_fpn(num_keypoints=NUM_KPT)
+    #model = keypointrcnn_resnet50_fpn(num_keypoints=NUM_KPT)
+    dilation = 2
+    kh_depth = 6
+    model = AutomotiveKeypointDetector(kh_depth=kh_depth, dilation=dilation)
     model.load_state_dict(torch.load(args.model, map_location=device))
 
     ## Do inference over the retrieval image
