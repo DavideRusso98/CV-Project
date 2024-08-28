@@ -11,6 +11,10 @@ Furthermore, we introduce an advanced data retrieval system utilizing Object Key
 <div align="center">
   <img src="./img/skoda_retrieval.png" alt="Retrieval" width="500">
 </div>
+```bash
+python .\src\retrieval\retrieval.py --model [akd-2.3.pth] -i .\src\img-processing\car\output_images\no_bg\fiat.jpeg --images .\src\dataset\output\images\clean\ --json .\src\retrieval\dataset.json
+```
+
 
 ## Result
 | **Model name** | **Description**                      | **Backbone type**    | **# Epochs** | **Keypoint Head Depth** | **Alpha** | **Dilation** | **Bbox AP** | **Bbox AR** | **Keypoint AP** | **Keypoint AR** |
