@@ -14,7 +14,7 @@ from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor, Ke
 from resnet.coco_eval import CocoEvaluator
 from resnet.components import AutomotiveKeypointDetector, KeypointHead
 from resnet.train_default import COCODataset
-from resnet.utils import get_transform, plot_keypoints, threshold_keypoints, MetricLogger, compute_coco_areas, \
+from resnet.utils import get_transform, plot_keypoints, MetricLogger, compute_coco_areas, \
     extract_probs_from_scores
 
 
@@ -29,6 +29,7 @@ def get_default_model(num_classes=2, num_keypoints=20):
     model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(
         model.roi_heads.box_predictor.cls_score.in_features, num_classes)
     return model
+
 
 ### Model linked to akd-2.0.pth
 def get_custom_model(num_classes=2, num_keypoints=20, trainable_layers=3):
@@ -61,8 +62,6 @@ def main():
 
     ### Model Pick
     model = AutomotiveKeypointDetector(kh_depth = kh_depth, dilation = dilation)
-    #model = get_default_model()
-    #model = get_custom_model()
 
     model.load_state_dict(torch.load(args.model, map_location=device))
     model.eval()

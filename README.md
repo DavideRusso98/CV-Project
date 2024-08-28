@@ -14,12 +14,12 @@ Furthermore, we introduce an advanced data retrieval system utilizing Object Key
 
 Dataset offline generation:
 ```bash
-python ./src/retrieval/dataset_offline.py  --model ./src/resnet/trained_models/akd-2.3.pth --images ./src/dataset/output_test/images/clean --json ./src/retrieval/dataset.json
+python ./src/retrieval/dataset_offline.py  --model ./src/resnet/trained_models/akd-2.3-old.pth --images ./src/dataset/output_test/images/clean --json ./src/retrieval/dataset.json
 ```
 
 Retrieval output with a synthetic image:
 ```bash
-python  ./src/retrieval/retrieval.py --model ./src/resnet/trained_models/akd-2.3.pth -i [image] --images ./src/dataset/output_test/images/clean --json ./src/retrieval/dataset.json
+python  ./src/retrieval/retrieval.py --model ./src/resnet/trained_models/akd-2.3-old.pth -i [image] --images ./src/dataset/output_test/images/clean --json ./src/retrieval/dataset.json
 ```
 
 ## Result
@@ -38,5 +38,5 @@ python  ./src/retrieval/retrieval.py --model ./src/resnet/trained_models/akd-2.3
 
 HOW TO LAUNCH INFERENCE WITH LATEST MODEL:
 ```bash
-python ./src/resnet/inference.py ./src/resnet/trained_models/akd-2.3.pth -o ./src/dataset/output_test/images/predictions/decompressed --images ./src/dataset/output_test/images/clean -c ./src/dataset/output_test/coco_annotations.json
+python ./src/resnet/inference.py ./src/resnet/trained_models/akd-2.3-old.pth -o ./src/dataset/output_test/images/predictions/decompressed --images ./src/dataset/output_test/images/clean -c ./src/dataset/output_test/coco_annotations.json
 ```
