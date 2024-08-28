@@ -11,11 +11,11 @@ from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
 from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor, KeypointRCNN
 
+from resnet.coco_eval import CocoEvaluator
 from resnet.components import AutomotiveKeypointDetector, KeypointHead
 from resnet.train_default import COCODataset
 from resnet.utils import get_transform, plot_keypoints, threshold_keypoints, MetricLogger, compute_coco_areas, \
     extract_probs_from_scores
-from test_resnet.coco_eval import CocoEvaluator
 
 
 def get_default_model(num_classes=2, num_keypoints=20):
@@ -57,11 +57,11 @@ def main():
     device = torch.device('cuda')
 
     dilation = 2
-    kh_depth = 4
+    kh_depth = 6
 
     ### Model Pick
-    #model = AutomotiveKeypointDetector(kh_depth = kh_depth, dilation = dilation)
-    model = get_default_model()
+    model = AutomotiveKeypointDetector(kh_depth = kh_depth, dilation = dilation)
+    #model = get_default_model()
     #model = get_custom_model()
 
     model.load_state_dict(torch.load(args.model, map_location=device))
@@ -95,7 +95,8 @@ def main():
                 keypoints_prob = extract_probs_from_scores(keypoints_scores)
                 actual_bbox = targets[i]['boxes'][0]
                 pred_bbox = torch.tensor(boxes[max_score_index]).reshape(4)
-                thresh_keypoint = threshold_keypoints(pred_keypoints, keypoints_prob, 0.3)
+                thresh_keypoint = pred_keypoints
+                #thresh_keypoint = threshold_keypoints(pred_keypoints, keypoints_prob, 0.3)
                 plot_keypoints(image, actual_keypoints, thresh_keypoint, actual_bbox, pred_bbox, args.dest_dir, targets[i]['img_name'])
 
                 ### Evaluation Metrics

@@ -26,6 +26,10 @@ Furthermore, we introduce an advanced data retrieval system utilizing Object Key
 | **akd-2.4**    | Custom KH and changed dilation       | resnet50             | 15           | 6                       | 1.2       | 2            | 1.000       | 1.000       | 0.700          | 0.700          |
 | **akd-3.0**    | Custom KH, custom dilation, diff BB  | resnext50\_32x4d     | 8            | 4                       | 1.2       | 2            | 0.850       | 0.900       | 0.350          | 0.400          |
 
-
 ## Link to our Google Drive
 [ANNOTATED DATASET](https://drive.google.com/drive/folders/1GCpRsDSXSHfqCM5T36EM5d35a_DVg3LB?usp=drive_link)
+
+HOW TO LAUNCH INFERENCE WITH LATEST MODEL:
+```bash
+python ./src/resnet/inference.py ./src/resnet/trained_models/akd-2.3.pth -o ./src/dataset/output_test/images/predictions/decompressed --images ./src/dataset/output_test/images/clean -c ./src/dataset/output_test/coco_annotations.json
+```

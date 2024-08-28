@@ -6,8 +6,9 @@ import torchvision
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor
+
+from resnet.coco_eval import CocoEvaluator
 from resnet.utils import COCODataset, get_transform, MetricLogger, SmoothedValue
-from test_resnet.coco_eval import CocoEvaluator
 
 
 def evaluate(model, data_loader, device):
