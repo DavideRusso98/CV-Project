@@ -12,9 +12,7 @@ Furthermore, we introduce an advanced data retrieval system utilizing Object Key
   <img src="./img/skoda_retrieval.png" alt="Retrieval" width="500">
 </div>
 
-```bash
-python .\src\retrieval\retrieval.py --model [akd-2.3.pth] -i .\src\img-processing\car\output_images\no_bg\fiat.jpeg --images .\src\dataset\output\images\clean\ --json .\src\retrieval\dataset.json
-```
+
 
 
 ## Result
