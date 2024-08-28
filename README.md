@@ -40,7 +40,3 @@ HOW TO LAUNCH INFERENCE WITH LATEST MODEL:
 ```bash
 python ./src/resnet/inference.py ./src/resnet/trained_models/akd-2.3.pth -o ./src/dataset/output_test/images/predictions/decompressed --images ./src/dataset/output_test/images/clean -c ./src/dataset/output_test/coco_annotations.json
 ```
-
-```bash
-python ./src/retrieval/dataset_offline.py  --model ./src/resnet/trained_models/akd-2.3.pth --images ./src/dataset/output_test/images/clean --json ./src/retrieval/dataset.json
-```
