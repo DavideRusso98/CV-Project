@@ -15,7 +15,7 @@ class Inference:
         self.image = image
         self.model = model
 
-    def get_kpts(self, is_th=False, th=50):
+    def get_kpts(self, is_th=False, th=15):
         """
         Make predictions with given image and return a keypoint tensor with higher scores.
         Params:

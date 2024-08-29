@@ -3,7 +3,24 @@
 import os,argparse,torch,json
 from retrieval import Inference, get_transform, preprocess_image,oks_reshape
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
+from torchvision.models.detection.anchor_utils import AnchorGenerator
+from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor, KeypointRCNN
+from components import AutomotiveKeypointDetector
+import torchvision
+
+
 NUM_KPT = 20
+def get_default_model(num_classes=2, num_keypoints=20):
+    anchor_generator = AnchorGenerator(sizes=(32, 64, 128, 256, 512),
+                                       aspect_ratios=(0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0))
+    model = keypointrcnn_resnet50_fpn(num_classes=num_classes,
+                                      num_keypoints=num_keypoints,
+                                      anchor_generator=anchor_generator)
+    in_features = model.roi_heads.keypoint_predictor.kps_score_lowres.in_channels
+    model.roi_heads.keypoint_predictor = KeypointRCNNPredictor(in_features, num_keypoints)
+    model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(
+        model.roi_heads.box_predictor.cls_score.in_features, num_classes)
+    return model
 def write_json(oks,path):
     oks =  {key: [tensor.tolist() for tensor in value] for key, value in oks.items()}
     json_data = json.dumps(oks, indent=4)
@@ -18,8 +35,9 @@ def main():
     args = parser.parse_args()
     image_folder = args.folder_images
     device = torch.device('cpu')
-
-    model = keypointrcnn_resnet50_fpn(num_keypoints=NUM_KPT)
+    dilation = 2
+    kh_depth = 6
+    model = AutomotiveKeypointDetector(kh_depth=kh_depth, dilation=dilation)
     model.load_state_dict(torch.load(args.model, map_location=device))
 
     batch_image = 0

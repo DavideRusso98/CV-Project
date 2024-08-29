@@ -6,6 +6,7 @@ from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
+
 class AutomotiveKeypointDetector(KeypointRCNN):
 
     def __init__(self, kh_depth=4, dilation=2, num_classes=2, num_keypoints=20):
