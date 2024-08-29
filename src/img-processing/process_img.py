@@ -11,7 +11,6 @@ def preprocess_image(image_path, output_path):
     image = enhance_contrast(image)
     image = sharpen_image(image)
     image = normalize_image(image)
-    #image = remove_reflections(image)
     
     cv2.imwrite(output_path, image)
 
@@ -39,15 +38,6 @@ def sharpen_image(image):
 def normalize_image(image):
     normalized = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX)
     return normalized
-
-def remove_reflections(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    _, mask = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)  # Apply a binary threshold to create a mask for reflections
-    
-    inpainted = cv2.inpaint(image, mask, 3, cv2.INPAINT_TELEA)  # Inpainting to remove reflections
-    
-    return inpainted
 
 def process_images(input_folder, output_folder):
     if not os.path.exists(output_folder):

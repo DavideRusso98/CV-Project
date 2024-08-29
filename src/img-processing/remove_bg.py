@@ -36,15 +36,10 @@ def remove_background(image, output_path):
     fgdModel = np.zeros((1, 65), np.float64)
     
     rect = (50, 50, image.shape[1] - 100, image.shape[0] - 100) # Definisci un rettangolo che contiene l'oggetto (in pixel)
-   
     cv2.grabCut(image, mask, rect, bgdModel, fgdModel, 5, cv2.GC_INIT_WITH_RECT) # Applica grabCut
-
     mask2 = np.where((mask == 2) | (mask == 0), 0, 1).astype('uint8') # Crea la maschera finale dove i valori sono 0 o 1, per indicare il background o il foreground
-
     foreground = image * mask2[:, :, np.newaxis] # Applica la maschera per ottenere il foreground
-
     background = np.full_like(image, (200, 200, 200), dtype=np.uint8) # Crea un'immagine di sfondo bianca
-
     result = background * (1 - mask2[:, :, np.newaxis]) + foreground # Combina il foreground con il background
 
     cv2.imwrite(output_path, result)
